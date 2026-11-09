@@ -7,6 +7,8 @@ PRESETS = {
                   residual_threshold=.15, max_shape_levels=3, primitive_fit='auto', refine_passes=1),
     'detail': dict(base_colors=16, target_shapes=250, detail_budget=100, boundary_preservation=.90,
                    residual_threshold=.08, max_shape_levels=3, primitive_fit='auto', refine_passes=2),
+    'poster': dict(base_colors=10, target_shapes=120, detail_budget=8, boundary_preservation=.68,
+                   residual_threshold=.18, max_shape_levels=3, primitive_fit='auto', refine_passes=1),
 }
 
 @dataclass(frozen=True)
@@ -32,7 +34,7 @@ class IllustrativeConfig:
         if not 0<=self.neural_optimize_steps<=20:raise ValueError('--neural-optimize-steps must be 0..20')
         if self.neural_merge and self.contour_method!='neural':raise ValueError('--neural-merge requires --contour-method neural')
         if self.preset not in PRESETS:
-            raise ValueError('--preset must be draft or detail')
+            raise ValueError('--preset must be one of: '+', '.join(PRESETS))
         if not 2 <= self.base_colors <= 256:
             raise ValueError('--base-colors must be 2..256')
         if self.target_shapes < 0 or self.detail_budget < 0:
@@ -48,7 +50,7 @@ class IllustrativeConfig:
     @classmethod
     def resolve(cls, preset='detail', **overrides):
         if preset not in PRESETS:
-            raise ValueError('--preset must be draft or detail')
+            raise ValueError('--preset must be one of: '+', '.join(PRESETS))
         values = {**PRESETS[preset], **{k:v for k,v in overrides.items() if v is not None}}
         return cls(preset=preset, **values)
 

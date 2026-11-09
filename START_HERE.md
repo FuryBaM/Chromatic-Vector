@@ -9,6 +9,10 @@
     python -m pytest -q
     python -m chromatic_vector references/head_shoulder_crop.png head.svg --mode illustrative --preset detail --contour-method neural --max-side 0 --simplify 1.1 --smooth .9 --max-error 1.1 --target-shapes 250 --detail-budget 100
 
+Для плакатной стилизации с крупными заливками и небольшим числом контрастных акцентов используйте пресет `poster`.
+
+    python -m chromatic_vector references/head_shoulder_crop.png poster.svg --mode illustrative --preset poster
+
 Веса и metadata.json: chromatic_vector/assets/bezier_patch_v1/.
 Программа автоматически использует эту копию модели. Для переобучения
 предусмотрен training/train_bezier.py; потребуются PyTorch и ONNX.

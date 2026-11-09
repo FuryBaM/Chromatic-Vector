@@ -27,7 +27,9 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
             chain.cubics=fit_neural_chain(np.asarray(chain.vertices,float),chain.paired_regions,neural_context,simplify,smooth,max_error)
             neural_records[chain_index]=(start_record,len(neural_context.records))
     fallback=set(); reduced_fit=set(); lattice_fallback=set(); violations=0
-    for attempt in range(5 if method=='neural' else 3):
+    recover_bounded = method == 'bounded' and max_error > 0 and (simplify > 0 or smooth > 0)
+    audit_passes = 5 if method == 'neural' else 3 + int(recover_bounded)
+    for _ in range(audit_passes):
         lines=[]
         for chain in graph.chains:
             points=sample_curves(chain.cubics,spacing=.25)
@@ -51,7 +53,7 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
             # Audit the original bounded fit before reverting to the pixel grid.
             if i in bounded_curves:
                 chain.cubics=bounded_curves.pop(i)
-            elif i in neural_records and i not in reduced_fit:
+            elif (recover_bounded or i in neural_records) and i not in reduced_fit:
                 eps, tension = simplify, smooth
                 for region in chain.paired_regions:
                     if styles and region in styles:

@@ -34,7 +34,13 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
     # Fine segmentation is a proposal source only; the rendered objective decides.
     colors=min(48,max(config.base_colors+8,config.base_colors*2),source.shape[0]*source.shape[1])
     if colors<2: return rendered,dict(proposals=0,accepted_patches=0,rejected_patches=0,patch_log=[],objective_before=initial_objective,objective_after=initial_objective),residual_images
-    ids=quantize(flat,colors,config.seed)
+    poster = config.preset == 'poster'
+    proposal_rgb = flat
+    if poster:
+        opaque = source[..., 3] == 255
+        proposal_rgb = flat.copy()
+        proposal_rgb[opaque] = source[..., :3][opaque]
+    ids=quantize(proposal_rgb,colors,config.seed)
     nbase=int(labels.max())+1
     combos=ids.astype(np.int64)*nbase+labels
     _,dense=np.unique(combos,return_inverse=True)
@@ -52,6 +58,10 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
             eligible=local & high[sl]
             if not eligible.any(): continue
             score=float((error[sl]*eligible).sum())*(1+min(1,float(fine.sizes[rid])/100))
+            if poster:
+                # Spend the small accent budget on edges instead of broad shading residuals.
+                edge_strength = float(np.mean(importance[sl][eligible]))
+                score *= edge_strength ** 2
             candidates.append((-score,rid,sl))
         candidates.sort(key=lambda c:(c[0],c[1]))
         pass_shapes=list(document.shapes); pass_render=rendered.copy();pass_log_start=len(log)

@@ -40,7 +40,7 @@ def propose(flat, reference, alpha, config, locked, correction_rgb):
             ids = np.zeros(alpha.shape,np.int32)
             for y in range(0,len(flat),64):
                 ids[y:y+64] = np.sum((lab[y:y+64,:,None,:]-centers[None,None,:,:])**2,axis=-1).argmin(axis=-1)
-            ids = edge_aware_refine(work,ids,passes=2 if config.preset=='draft' else 1)
+            ids = edge_aware_refine(work,ids,passes=1 if config.preset=='detail' else 2)
     ids[~visible] = int(ids.max())+1
     # Exact opacity strata: no alpha quantization, including antialiased rims.
     combined = ids.astype(np.int64)*256+alpha
@@ -107,7 +107,7 @@ def merge_planes(seg, reference, importance, alpha, locked, config):
         heapq.heappush(queue,(score,a,b,int(version[a]),int(version[b]),delta))
     for a,b in graph: push(a,b)
     target = config.target_shapes or 1
-    budget = (130 if config.preset=='draft' else 65)*reference.size
+    budget = {'detail': 65, 'draft': 130, 'poster': 320}[config.preset] * reference.size
     added = 0.; joined = 0
     while queue and n-joined > target:
         peak_queue=max(peak_queue,len(queue))

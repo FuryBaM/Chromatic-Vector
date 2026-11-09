@@ -43,13 +43,20 @@ def flatten_rgba(rgba, preset='detail'):
     elif not visible.any():
         rgb[:] = 0
     importance = importance_map(rgb,alpha)
-    flat = cv2.bilateralFilter(rgb,7,38 if preset=='draft' else 28,5)
-    flat = cv2.bilateralFilter(flat,7,32 if preset=='draft' else 24,5)
+    if preset == 'poster':
+        # Broader color planes while keeping sharp silhouettes and accents.
+        diameter = min(19, max(9, 2 * round(min(alpha.shape) / 48) + 1))
+        flat = cv2.bilateralFilter(rgb, diameter, 39, diameter / 2)
+        flat = cv2.bilateralFilter(flat, diameter, 30, diameter / 2)
+    else:
+        flat = cv2.bilateralFilter(rgb,7,38 if preset=='draft' else 28,5)
+        flat = cv2.bilateralFilter(flat,7,32 if preset=='draft' else 24,5)
     # Protect source edge seeds and every alpha transition from smoothing.
     alpha_edge = np.zeros(alpha.shape,np.uint8)
     alpha_edge[:,1:] |= (alpha[:,1:] != alpha[:,:-1])
     alpha_edge[1:] |= (alpha[1:] != alpha[:-1])
     alpha_edge = cv2.dilate(alpha_edge,np.ones((3,3),np.uint8)) > 0
-    flat[(importance > .75) | alpha_edge] = rgb[(importance > .75) | alpha_edge]
+    edge_seeds = (importance > (.50 if preset == 'poster' else .75)) | alpha_edge
+    flat[edge_seeds] = rgb[edge_seeds]
     flat[~visible] = 0
     return flat, importance

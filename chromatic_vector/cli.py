@@ -9,6 +9,7 @@ from .palette import segment
 from .corrections import apply_color_overlay
 from .contours import extract_edges, trace_rings
 from .native import extract_native_edges
+from .modes import PRESETS, IllustrativeConfig
 from .svg import write_svg
 from .shared import SharedBoundaryGeometry
 from .shape_graph import build_document, layer_geometry_styles
@@ -27,7 +28,7 @@ def vectorize(source: str | Path, dest: str | Path, colors=18, min_area=6,
               export_mode: str = "shapes", merge_tolerance: float = 10.0,
               merge_max_area: int = 48, adaptive_layers: bool = True,
               shape_report: str | Path | None = None,
-              target_shapes: int = 0, merge_mse_budget: float = 45.0,
+              target_shapes: int | None = None, merge_mse_budget: float = 45.0,
               edge_protection: float = 2.5, *, mode: str = "precise", preset: str = "detail",
               base_colors: int | None = None, detail_budget: int | None = None,
               boundary_preservation: float | None = None, residual_threshold: float | None = None,
@@ -38,8 +39,9 @@ def vectorize(source: str | Path, dest: str | Path, colors=18, min_area=6,
         raise ValueError('Neural options require --mode illustrative --contour-method neural')
     if mode not in ('precise', 'illustrative'):
         raise ValueError('--mode must be precise or illustrative')
+    if target_shapes is None and not (mode == 'illustrative' and preset == 'poster'):
+        target_shapes = 0
     if mode == 'illustrative':
-        from .modes import IllustrativeConfig
         from .pipeline import vectorize_illustrative
         config = IllustrativeConfig.resolve(preset, base_colors=base_colors,
             target_shapes=target_shapes, detail_budget=detail_budget,
@@ -182,7 +184,7 @@ def main():
     p.add_argument("input", type=Path, help="PNG/JPG/WebP input")
     p.add_argument("output", type=Path, help="SVG output")
     p.add_argument('--mode', choices=('precise','illustrative'), default='precise')
-    p.add_argument('--preset', choices=('draft','detail'), default='detail')
+    p.add_argument('--preset', choices=tuple(PRESETS), default='detail')
     p.add_argument('--base-colors', type=int)
     p.add_argument('--detail-budget', type=int)
     p.add_argument('--boundary-preservation', type=float, help='Illustrative hard boundary preservation 0..1; legacy --edge-protection is unchanged')
@@ -237,12 +239,10 @@ def main():
         p.error('--contour-method requires --mode illustrative')
     if args.target_shapes is None:
         if args.mode == 'illustrative':
-            from .modes import PRESETS
             args.target_shapes = PRESETS[args.preset]['target_shapes']
         else:
             args.target_shapes = 2000
     if args.mode == 'illustrative':
-        from .modes import IllustrativeConfig
         try:
             IllustrativeConfig.resolve(args.preset, **{k:getattr(args,k) for k in
                 ('base_colors','detail_budget','boundary_preservation','residual_threshold',
