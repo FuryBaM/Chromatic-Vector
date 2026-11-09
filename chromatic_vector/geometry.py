@@ -3,13 +3,16 @@ import numpy as np
 from shapely.geometry import LineString, Point
 from shapely.strtree import STRtree
 from .shared import SharedBoundaryGeometry
-from .curve_fitting import fit_shared_curve, sample_curves
+from .curve_fitting import fit_poster_curve, fit_shared_curve, sample_curves
 
 
-def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, method="bounded", neural_context=None):
+def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, method="bounded", neural_context=None,
+                *, poster=False):
     from .unipolar import METHODS, fit_unipolar
     if method not in (*METHODS,'neural'):raise ValueError('Unknown contour method: '+method)
     fitter=fit_shared_curve if method in ('bounded','neural') else lambda raw,eps,smooth,err:fit_unipolar(raw,eps,smooth,err,method)
+    if poster and method=='bounded':
+        fitter=fit_poster_curve
     # RDP is float-stable across the two edge scanners; canonical anchor identical.
     graph=SharedBoundaryGeometry(edges,simplify,smooth,'rdp',max_error=max_error,region_styles=styles,
                                  chain_fitter=fitter)

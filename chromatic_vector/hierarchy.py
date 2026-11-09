@@ -44,7 +44,7 @@ class VectorDocument:
     geometry_metrics: dict
     clips: dict[str,str] = field(default_factory=dict)
 
-    def svg(self, bounds=None):
+    def svg(self, bounds=None, *, contours=False):
         fmt=lambda x: f'{x:.6f}'.rstrip('0').rstrip('.') or '0'
         vx,vy,vw,vh = (0,0,self.width,self.height) if bounds is None else (bounds[0],bounds[1],bounds[2]-bounds[0],bounds[3]-bounds[1])
         lines=['<?xml version="1.0" encoding="UTF-8"?>',
@@ -57,7 +57,7 @@ class VectorDocument:
             lines.append('</defs>')
         if self.geometry_metrics.get('opaque_backdrop'):
             lines.append(f'<rect data-role="opaque-canvas" x="0" y="0" width="{self.width}" height="{self.height}" fill="{self.geometry_metrics["opaque_backdrop"]}"/>')
-        if self.geometry_metrics.get('seam_underpaint'):
+        if self.geometry_metrics.get('seam_underpaint') and not contours:
             # Opaque-only vector backing. The fills remain canonical; a narrow
             # under-stroke covers antialias seams without disabling antialiasing.
             lines.append('<g data-role="seam-underpaint" stroke-width="0.6" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">')
@@ -81,18 +81,25 @@ class VectorDocument:
                 lines.append(f'<g id="layer-{shape.layer}-{run}" data-layer="{shape.layer}" data-heuristic="true" inkscape:groupmode="layer" inkscape:label="{shape.layer}">')
                 previous=group; run+=1
             color='#'+''.join(f'{c:02x}' for c in shape.fill[:3])
+            if contours:
+                color = '#' + ''.join(f'{round(c * .45):02x}' for c in shape.fill[:3])
             attrs=(('shape-rendering="crispEdges" ' if (self.geometry_metrics.get('alpha_exact') or shape.locked) and shape.kind=='base' else 'shape-rendering="geometricPrecision" ')+f'id="{shape.uid}" data-shape-id="{shape.uid}" data-layer="{shape.layer}" data-level="{shape.level}" '
                    f'data-parent="{shape.containment_parent_uid or "none"}" data-composition-parent="{shape.composition_parent_uid or "none"}" '
                    f'data-draw-order="{shape.draw_order}" data-kind="{shape.kind}" fill="{color}" fill-opacity="{fmt(shape.fill[3]/255)}"')
             if shape.clipped_by_uid: attrs+=f' clip-path="url(#clip-{shape.clipped_by_uid})"'
+            if contours:
+                width = .65 if shape.level == 'primary' else .42
+                opacity = .42 if shape.kind == 'overlay' else .78
+                attrs += (f' stroke="#59dedb" stroke-width="{width}" stroke-opacity="{opacity}"'
+                          ' stroke-linejoin="round"')
             lines.append(f'<{shape.primitive} {attrs} {shape.geometry}/>')
         if previous is not None: lines.append('</g>')
         lines.append('</svg>')
         return '\n'.join(lines)
 
-    def write(self,path):
+    def write(self,path,*,contours=False):
         path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
-        path.write_text(self.svg(),encoding='utf-8')
+        path.write_text(self.svg(contours=contours),encoding='utf-8')
 
     def stats(self):
         return dict(shape_count=len(self.shapes),layers=dict(Counter(s.layer for s in self.shapes)),

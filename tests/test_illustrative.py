@@ -40,14 +40,24 @@ def test_presets_explicit_override():
 def test_poster_simplifies_reference_and_keeps_major_edges(tmp_path):
     source = Path(__file__).resolve().parents[1] / 'references' / 'head_shoulder_crop.png'
     svg = tmp_path / 'poster.svg'
+    debug = tmp_path / 'debug'
     stats = vectorize(source, svg, mode='illustrative', preset='poster',
-                      max_side=0, simplify=1.1, smooth=.9, max_error=1.1)
+                      max_side=0, simplify=1.1, smooth=.9, max_error=1.1, debug_dir=debug)
     assert stats['config']['target_shapes'] == 120
     assert stats['shape_count'] < 160
     assert stats['accepted_patches'] <= stats['config']['detail_budget']
     assert stats['metrics_after']['edge_f1']['1'] > .75
     assert stats['metrics_after']['alpha_mae'] == 0
     assert '<image' not in svg.read_text(encoding='utf-8')
+    export = ET.parse(svg).findall('.//*[@data-shape-id]')
+    contours = ET.parse(debug / 'vector_contours.svg').findall('.//*[@data-shape-id]')
+    assert len(contours) == len(export)
+    for shape, outlined in zip(export, contours):
+        assert outlined.get('stroke')
+        assert outlined.tag == shape.tag
+        for key in ('data-shape-id', 'd', 'points', 'x', 'y', 'width', 'height',
+                    'cx', 'cy', 'rx', 'ry', 'transform', 'clip-path'):
+            assert outlined.get(key) == shape.get(key)
 
 
 @pytest.mark.parametrize('alpha',[0,1,64,128,254,255])

@@ -75,7 +75,8 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
             (legacy.shapes[rid].primitive=='rectangle-candidate' and (config.contour_method=='bounded' or
              min(legacy.shapes[rid].bbox[2]-legacy.shapes[rid].bbox[0],legacy.shapes[rid].bbox[3]-legacy.shapes[rid].bbox[1])>=8))}
         context=NeuralContext(reference[...,:3],current.labels,current.region_colors,neural_model,config.neural_optimize_steps) if neural_model else None
-        shared,metrics=safe_shared(edges,simplify,smooth,max_error,styles,method=config.contour_method,neural_context=context)
+        shared,metrics=safe_shared(edges,simplify,smooth,max_error,styles,method=config.contour_method,
+                                   neural_context=context,poster=config.preset=='poster')
         return edges,rings,legacy,region_alpha,region_lock,has_alpha,shared,metrics,context,actual
     geometry_state=construct(seg)
     neural_merge_stats=None
@@ -221,4 +222,5 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
         (folder/'candidate_rois.json').write_text(json.dumps(refine_stats['patch_log'],indent=2))
         (folder/'metrics.json').write_text(json.dumps({k:v for k,v in report.items() if k not in ('shapes','boundaries')},indent=2,allow_nan=False))
         document.write(folder/'output.svg')
+        document.write(folder/'vector_contours.svg',contours=True)
     return {k:v for k,v in report.items() if k not in ('shapes','boundaries','refinement')}

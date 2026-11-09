@@ -13,6 +13,8 @@
 
     python -m chromatic_vector references/head_shoulder_crop.png poster.svg --mode illustrative --preset poster
 
+Чтобы увидеть линии экспортированных фигур, добавьте `--debug-dir debug/poster` и откройте `vector_contours.svg` из этой папки.
+
 Веса и metadata.json: chromatic_vector/assets/bezier_patch_v1/.
 Программа автоматически использует эту копию модели. Для переобучения
 предусмотрен training/train_bezier.py; потребуются PyTorch и ONNX.

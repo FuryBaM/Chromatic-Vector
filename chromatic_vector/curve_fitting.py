@@ -20,9 +20,7 @@ def sample_curves(curves, spacing=.25):
     return np.vstack((curves[0][0],*chunks)) if chunks else np.zeros((0,2))
 
 
-def _ordered_reduce(raw, epsilon, smooth):
-    closed=np.array_equal(raw[0],raw[-1])
-    core=raw[:-1] if closed else raw
+def _sharp_points(core, closed):
     # Identify actual corners from long straight runs, not 1px staircase turns.
     linear=cv2.approxPolyDP(core.astype(np.float32),0,closed).reshape(-1,2)
     sharp=set()
@@ -31,6 +29,13 @@ def _ordered_reduce(raw, epsilon, smooth):
         va=p-linear[i-1];vb=linear[(i+1)%len(linear)]-p
         da,db=np.linalg.norm(va),np.linalg.norm(vb)
         if min(da,db)>=3 and np.dot(va,vb)/(da*db)<.5:sharp.add(tuple(p))
+    return sharp
+
+
+def _ordered_reduce(raw, epsilon, smooth):
+    closed=np.array_equal(raw[0],raw[-1])
+    core=raw[:-1] if closed else raw
+    sharp=_sharp_points(core,closed)
     if smooth>0 and len(core)>5:
         filtered=gaussian_filter1d(core,sigma=.85,axis=0,mode='wrap' if closed else 'nearest')
         pts=core+(filtered-core)*smooth
@@ -87,15 +92,105 @@ def fit_shared_curve(raw, simplify, smooth, max_error):
         pts,sharp=_ordered_reduce(raw,epsilon,strength)
         curves=_cubics(pts,strength,sharp)
         if attempt==3:return curves,3
-        samples=sample_curves(curves)
-        # Raw grid vertices are <= .5px apart from their true segment. Checking
-        # point-to-segment projection avoids falsely rejecting a straight fit.
-        _,indices=source_tree.query(samples,k=min(4,len(raw)))
-        indices=np.asarray(indices).reshape(len(samples),-1)
-        starts=np.concatenate((np.clip(indices-1,0,len(raw)-2),np.clip(indices,0,len(raw)-2)),axis=1)
-        a=raw[starts];v=raw[starts+1]-a
-        t=np.clip(np.sum((samples[:,None,:]-a)*v,axis=-1)/np.maximum(1e-15,np.sum(v*v,axis=-1)),0,1)
-        forward=np.sqrt(np.sum((samples[:,None,:]-(a+t[...,None]*v))**2,axis=-1)).min(axis=1).max()
-        backward=cKDTree(samples).query(raw)[0].max()
-        if max(forward,backward)<=max_error:return curves,attempt
+        if _within_error(raw, source_tree, curves, max_error):return curves,attempt
     raise AssertionError('unreachable')
+
+
+def _within_error(raw, source_tree, curves, max_error):
+    samples = sample_curves(curves)
+    # Project to source segments so sampling phase cannot reject a straight fit.
+    _, indices = source_tree.query(samples, k=min(4, len(raw)))
+    indices = np.asarray(indices).reshape(len(samples), -1)
+    starts = np.concatenate((np.clip(indices-1, 0, len(raw)-2), np.clip(indices, 0, len(raw)-2)), axis=1)
+    a = raw[starts]
+    v = raw[starts+1] - a
+    t = np.clip(np.sum((samples[:, None, :] - a) * v, axis=-1) /
+                np.maximum(1e-15, np.sum(v*v, axis=-1)), 0, 1)
+    forward = np.linalg.norm(samples[:, None, :] - (a + t[..., None]*v), axis=-1).min(axis=1).max()
+    backward = cKDTree(samples).query(raw)[0].max()
+    return max(forward, backward) <= max_error
+
+
+def _fit_span(points, start_tangent, end_tangent):
+    """Fit handle lengths with fixed positions and tangent directions."""
+    a, b = points[0], points[-1]
+    chord = np.linalg.norm(b - a)
+    if len(points) <= 2:
+        return (a, a, b, b), 0, 0.
+    if chord < 1e-8:
+        return (a, a, b, b), len(points)//2, np.inf
+    lengths = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    t = np.r_[0., np.cumsum(lengths)][:, None] / lengths.sum()
+    u = 1 - t
+    h1, h2 = 3*u*u*t, 3*u*t*t
+    base = (u**3 + h1)*a + (t**3 + h2)*b
+    handles = np.stack((h1*start_tangent, -h2*end_tangent), axis=-1).reshape(-1, 2)
+    offsets = (points - base).ravel()
+    weights = np.linalg.lstsq(handles, offsets, rcond=None)[0]
+    weights = np.clip(weights, chord*.06, chord*.65)
+    errors = np.linalg.norm((offsets - handles @ weights).reshape(-1, 2), axis=1)
+    split = int(np.argmax(errors[1:-1])) + 1
+    return (a, a + weights[0]*start_tangent, b - weights[1]*end_tangent, b), split, errors[split]
+
+
+def fit_poster_curve(raw, simplify, smooth, max_error):
+    """Fit long spans to the edge trend, with corners and junctions pinned."""
+    raw = np.asarray(raw, float)
+    closed = np.array_equal(raw[0], raw[-1])
+    short_axis = min(np.ptp(raw, axis=0))
+    thin = short_axis == 0 or (closed and short_axis <= 1)
+    if len(raw) < 8 or thin or not (simplify and smooth and max_error):
+        return fit_shared_curve(raw, simplify, smooth, max_error)
+
+    core = raw[:-1] if closed else raw
+    filtered = gaussian_filter1d(core, sigma=2., axis=0, mode='wrap' if closed else 'nearest')
+    points = core + (filtered - core)*smooth
+    sharp = _sharp_points(core, closed)
+    corners = {i for i, point in enumerate(core) if tuple(point) in sharp}
+    pins = corners | {0, len(raw)-1}
+    fixed = list(corners | {0})
+    points[fixed] = raw[fixed]
+    if closed:
+        pins.add(int(np.argmax(np.sum((core-core[0])**2, axis=1))))
+        points = np.vstack((points, points[0]))
+    else:
+        points[-1] = raw[-1]
+
+    indices = np.arange(len(core))
+    if closed:
+        previous, following = np.roll(filtered, 2, axis=0), np.roll(filtered, -2, axis=0)
+    else:
+        previous = filtered[np.maximum(indices-2, 0)]
+        following = filtered[np.minimum(indices+2, len(core)-1)]
+    tangents = following - previous
+    tangents /= np.maximum(1e-12, np.linalg.norm(tangents, axis=1, keepdims=True))
+    if closed:
+        tangents = np.vstack((tangents, tangents[0]))
+
+    tolerance = min(simplify, max_error) * .58
+    ordered = sorted(pins)
+    pending = list(reversed(list(zip(ordered, ordered[1:]))))
+    curves = []
+    while pending:
+        start, end = pending.pop()
+        span = points[start:end+1]
+        left = tangents[start]
+        right = tangents[end]
+        if start % len(core) in corners:
+            left = span[min(3, len(span)-1)] - span[0]
+            left = left / max(1e-12, np.linalg.norm(left))
+        if end % len(core) in corners:
+            right = span[-1] - span[max(0, len(span)-4)]
+            right = right / max(1e-12, np.linalg.norm(right))
+        curve, split, error = _fit_span(span, left, right)
+        if error > tolerance:
+            # Keep pathological staircase chains from repeatedly splitting one point off.
+            margin = len(span)//8
+            split = min(max(split, margin), len(span)-1-margin)
+            mid = start + split
+            pending.extend(((mid, end), (start, mid)))
+        else:
+            curves.append(curve)
+    if _within_error(raw, cKDTree(raw), curves, max_error):
+        return curves, 0
+    return fit_shared_curve(raw, simplify, smooth, max_error)

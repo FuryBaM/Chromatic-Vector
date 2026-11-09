@@ -33,6 +33,24 @@ def test_closed_circle_has_curves_and_continuous_anchor_tangent():
     assert np.max(np.abs(radius-1))<.06
 
 
+def test_poster_ellipse_uses_long_spans_with_aligned_tangents():
+    y, x = np.indices((85, 95))
+    labels = (((x+.5-47)/29)**2 + ((y+.5-42)/26)**2 <= 1).astype(np.int32)
+    edges = extract_edges(labels)
+    graph, metrics = safe_shared(edges, simplify=1.1, smooth=.9, max_error=1.1, poster=True)
+    chain = next(c for c in graph.chains if c.closed and c.paired_regions == (0, 1))
+    assert 3 <= len(chain.cubics) <= 6
+    assert metrics['intersection_fallbacks'] == 0
+    for left, right in zip(chain.cubics, chain.cubics[1:] + chain.cubics[:1]):
+        incoming, outgoing = left[-1] - left[-2], right[1] - right[0]
+        assert incoming @ outgoing > 0
+        np.testing.assert_allclose(incoming / np.linalg.norm(incoming),
+                                   outgoing / np.linalg.norm(outgoing), atol=1e-8)
+    points = sample_curves(chain.cubics)
+    radius = np.sqrt(((points[:, 0]-47)/29)**2 + ((points[:, 1]-42)/26)**2)
+    assert np.max(np.abs(radius-1)) < .035
+
+
 def test_neural_self_intersection_recovers_smooth_bounded_contour(monkeypatch):
     from collections import Counter
     from chromatic_vector import neural
