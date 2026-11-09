@@ -11,6 +11,27 @@ from chromatic_vector.palette import connected_regions
 from chromatic_vector.cli import vectorize
 
 
+def test_complex_training_contains_fit_targets_and_unsafe_junctions():
+    patches, _, _, _, labels = make_dataset(96, 281731, complex_shapes=True)
+    has_neighbor = (patches[:, 3] == .5).any(axis=(1, 2))
+    assert np.any(has_neighbor & (labels[:, 2] == 1))
+    junctions = has_neighbor & (labels[:, 0] == 1)
+    assert np.any(junctions)
+    assert not np.any(labels[junctions, 2])
+    assert not np.any(labels[junctions, 1])
+
+
+def test_complex_onnx_recognizes_unseen_junctions():
+    root = Path(__file__).resolve().parents[1]
+    model = BezierModel(root / 'models' / 'bezier_patch_complex' / 'model.onnx')
+    patches, context, _, _, labels = make_dataset(256, 248081, complex_shapes=True)
+    third_region = (patches[:, 3] == .5).any(axis=(1, 2))
+    junctions = np.flatnonzero(third_region & (labels[:, 0] == 1))
+    valid = np.flatnonzero(third_region & (labels[:, 2] == 1))
+    assert np.mean([model.predict(patches[i], context[i])[1] > .8 for i in junctions]) >= .65
+    assert np.mean([model.predict(patches[i], context[i])[1] > .8 for i in valid]) <= .15
+
+
 def test_trained_model_beats_straight_lines_on_unseen_vectors():
     model=BezierModel();data=make_dataset(96,721031)
     p,c,h,m,l=data;errors=[];straight=[];corner=[];merge=[]

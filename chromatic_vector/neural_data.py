@@ -19,7 +19,53 @@ def curve_samples(handles,count=257):
     return x,y
 
 
-def make_dataset(count,seed):
+def _complex_neighborhood(rng, yy, rgb, region, ca, cb):
+    """Put third regions near a tracked edge, including unfit junctions."""
+    xx, vertical = np.meshgrid(X, Y)
+    side = rng.choice((-1, 1))
+    distance = (vertical - yy[None]) * side
+    kind = rng.integers(5)
+    if kind == 0:
+        # Aperture and a nearby color island on one side of the edge.
+        cx, width = rng.uniform(.12, .88), rng.uniform(.12, .30)
+        height = rng.uniform(.10, .24)
+        ellipse = ((xx-cx)/width)**2 + ((distance-height-.04)/height)**2
+        third = ellipse < 1
+        third &= ellipse > rng.uniform(.08, .42)
+    elif kind == 1:
+        # Narrow ribbon bounded by a second, distinct edge.
+        width = rng.uniform(.045, .20) + .04*np.sin(2*np.pi*xx + rng.uniform(0, 2*np.pi))
+        third = distance > width
+    elif kind == 2:
+        # A neighboring concavity, close to the central edge without crossing it.
+        top = rng.uniform(.04, .12) + .7*(xx-rng.uniform(.1, .9))**2
+        third = (distance > top) & (distance < top + rng.uniform(.10, .26))
+    elif kind == 3:
+        # A third color interrupts the tracked pair at a T junction or crossing.
+        tip = rng.uniform(.2, .8)
+        front = rng.uniform(-.13, -.04) + rng.uniform(.25, .9)*np.abs(xx-tip)
+        third = distance > front
+    else:
+        # A junction near an endpoint still leaves the middle of the span fit-able.
+        tip = rng.choice((0., 1.)) + rng.uniform(-.025, .025)
+        front = rng.uniform(-.06, -.02) + rng.uniform(.65, 1.1)*np.abs(xx-tip)
+        third = distance > front
+
+    if rng.random() < .65:
+        # Actual crop windows often include unrelated colors on both sides.
+        opposite = rng.uniform(.09, .42) + .06*np.sin(2*np.pi*xx + rng.uniform(0, 2*np.pi))
+        third |= distance < -opposite
+
+    # Match the runtime's unknown-region value and leave the boundary channel
+    # describing only the chain under fit, even when another edge is visible.
+    color = rng.uniform(.02, .90, 3) if rng.random() < .6 else (ca+cb)/2
+    coverage = cv2.GaussianBlur(third.astype(np.float32), (3, 3), .65)[..., None]
+    rgb = rgb*(1-coverage) + color*coverage
+    region = np.where(third, .5, region).astype(np.float32)
+    return rgb, region, kind == 3
+
+
+def make_dataset(count,seed,*,complex_shapes=False):
     rng=np.random.default_rng(seed)
     patches=np.empty((count,5,SIZE,SIZE),np.float32)
     handles=np.empty((count,4),np.float32)
@@ -62,8 +108,11 @@ def make_dataset(count,seed):
         edge=cv2.morphologyEx(noisy,cv2.MORPH_GRADIENT,np.ones((3,3),np.uint8))
         edge=cv2.GaussianBlur(edge,(3,3),.65)
         region=noisy if rng.random()<.5 else 1-noisy
+        junction = False
+        if complex_shapes and kind == 0:
+            rgb, region, junction = _complex_neighborhood(rng, yy, rgb, region, ca, cb)
         patches[i]=np.concatenate((np.clip(rgb,0,1).transpose(2,0,1),region[None],edge[None]),axis=0)
-        handles[i]=h;masks[i]=truth;labels[i]=[kind==1 or (kind==3 and box),kind==2,kind==0]
+        handles[i]=h;masks[i]=truth;labels[i]=[kind==1 or (kind==3 and box) or junction,kind==2,kind==0 and not junction]
         # Source/context statistics; last two scalars encode relative source sampling.
         contexts[i]=[*np.clip(rgb,0,1).mean(axis=(0,1)),float(np.clip(rgb,0,1).std()),
                      float(np.linalg.norm(ca-cb)),float(region.mean()),sensor/96.,1.]

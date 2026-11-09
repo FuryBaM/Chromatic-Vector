@@ -1,0 +1,366 @@
+{
+  "schema": 1,
+  "architecture": "PatchBezier-v1",
+  "patch_size": 64,
+  "input_channels": [
+    "R",
+    "G",
+    "B",
+    "region_A",
+    "raw_boundary"
+  ],
+  "train_count": 14400,
+  "validation_count": 1600,
+  "test_count": 1600,
+  "train_seed": 23,
+  "validation_seed": 1234,
+  "test_seed": 198761,
+  "synthetic_only": true,
+  "generator_version": 3,
+  "photo_fixtures_used_in_training": false,
+  "outputs": [
+    "p1x",
+    "p1y",
+    "p2x",
+    "p2y",
+    "corner_logit",
+    "merge_logit"
+  ],
+  "test_metrics": {
+    "smooth_raster_mae": 0.007184881716966629,
+    "corner_accuracy": 0.940625,
+    "merge_accuracy": 0.99375,
+    "straight_raster_mae": 0.05529191344976425
+  },
+  "opencv_pytorch_max_error": 4.76837158203125e-06,
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 0.06282090481403654,
+      "smooth_raster_mae": 0.00859803892672062,
+      "corner_accuracy": 0.89375,
+      "merge_accuracy": 0.995,
+      "seconds": 22.461926613000003,
+      "complex_validation": {
+        "smooth_raster_mae": 0.008755180053412914,
+        "corner_accuracy": 0.760625,
+        "merge_accuracy": 0.991875,
+        "junction_recall_at_80": 0.03208556149732621,
+        "smooth_rejection_at_80": 0.039589442815249266
+      }
+    },
+    {
+      "epoch": 2,
+      "loss": 0.04292231313554586,
+      "smooth_raster_mae": 0.0076499623246490955,
+      "corner_accuracy": 0.90875,
+      "merge_accuracy": 0.996875,
+      "seconds": 25.684829319000016,
+      "complex_validation": {
+        "smooth_raster_mae": 0.008148150518536568,
+        "corner_accuracy": 0.755,
+        "merge_accuracy": 0.99625,
+        "junction_recall_at_80": 0.11229946524064172,
+        "smooth_rejection_at_80": 0.06598240469208211
+      }
+    },
+    {
+      "epoch": 3,
+      "loss": 0.03825012050503123,
+      "smooth_raster_mae": 0.007540550082921982,
+      "corner_accuracy": 0.92625,
+      "merge_accuracy": 0.99875,
+      "seconds": 29.026649093000003,
+      "complex_validation": {
+        "smooth_raster_mae": 0.00800545234233141,
+        "corner_accuracy": 0.7725,
+        "merge_accuracy": 0.996875,
+        "junction_recall_at_80": 0.11764705882352941,
+        "smooth_rejection_at_80": 0.060117302052785926
+      }
+    },
+    {
+      "epoch": 4,
+      "loss": 0.03514591845131553,
+      "smooth_raster_mae": 0.007454340811818838,
+      "corner_accuracy": 0.926875,
+      "merge_accuracy": 0.999375,
+      "seconds": 32.24829132299999,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007954505272209644,
+        "corner_accuracy": 0.795625,
+        "merge_accuracy": 0.998125,
+        "junction_recall_at_80": 0.16042780748663102,
+        "smooth_rejection_at_80": 0.04105571847507331
+      }
+    },
+    {
+      "epoch": 5,
+      "loss": 0.03201218101039397,
+      "smooth_raster_mae": 0.007522497791796923,
+      "corner_accuracy": 0.936875,
+      "merge_accuracy": 0.9975,
+      "seconds": 35.478175491,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007954186759889126,
+        "corner_accuracy": 0.81625,
+        "merge_accuracy": 0.9975,
+        "junction_recall_at_80": 0.39572192513368987,
+        "smooth_rejection_at_80": 0.07038123167155426
+      }
+    },
+    {
+      "epoch": 6,
+      "loss": 0.028821857959295795,
+      "smooth_raster_mae": 0.00745786726474762,
+      "corner_accuracy": 0.939375,
+      "merge_accuracy": 0.99875,
+      "seconds": 38.848250323,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007899428717792034,
+        "corner_accuracy": 0.851875,
+        "merge_accuracy": 0.996875,
+        "junction_recall_at_80": 0.44919786096256686,
+        "smooth_rejection_at_80": 0.04838709677419355
+      }
+    },
+    {
+      "epoch": 7,
+      "loss": 0.026337794498004746,
+      "smooth_raster_mae": 0.007602293509989977,
+      "corner_accuracy": 0.940625,
+      "merge_accuracy": 0.998125,
+      "seconds": 42.23054845399997,
+      "complex_validation": {
+        "smooth_raster_mae": 0.008111882954835892,
+        "corner_accuracy": 0.875,
+        "merge_accuracy": 0.996875,
+        "junction_recall_at_80": 0.48663101604278075,
+        "smooth_rejection_at_80": 0.03812316715542522
+      }
+    },
+    {
+      "epoch": 8,
+      "loss": 0.02430026778802935,
+      "smooth_raster_mae": 0.007407133933156729,
+      "corner_accuracy": 0.94875,
+      "merge_accuracy": 0.998125,
+      "seconds": 45.61901460499996,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007782849948853254,
+        "corner_accuracy": 0.88,
+        "merge_accuracy": 0.99625,
+        "junction_recall_at_80": 0.5721925133689839,
+        "smooth_rejection_at_80": 0.039589442815249266
+      }
+    },
+    {
+      "epoch": 9,
+      "loss": 0.022539708598525124,
+      "smooth_raster_mae": 0.007360504474490881,
+      "corner_accuracy": 0.94875,
+      "merge_accuracy": 0.99875,
+      "seconds": 49.382368719,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007646393030881882,
+        "corner_accuracy": 0.890625,
+        "merge_accuracy": 0.996875,
+        "junction_recall_at_80": 0.5508021390374331,
+        "smooth_rejection_at_80": 0.02785923753665689
+      }
+    },
+    {
+      "epoch": 10,
+      "loss": 0.021111643798978983,
+      "smooth_raster_mae": 0.007368254009634256,
+      "corner_accuracy": 0.953125,
+      "merge_accuracy": 0.99625,
+      "seconds": 52.56956735,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007749082054942846,
+        "corner_accuracy": 0.90875,
+        "merge_accuracy": 0.996875,
+        "junction_recall_at_80": 0.6577540106951871,
+        "smooth_rejection_at_80": 0.03225806451612903
+      }
+    },
+    {
+      "epoch": 11,
+      "loss": 0.019772500318961335,
+      "smooth_raster_mae": 0.0072172400541603565,
+      "corner_accuracy": 0.944375,
+      "merge_accuracy": 0.996875,
+      "seconds": 55.77809635099999,
+      "complex_validation": {
+        "smooth_raster_mae": 0.0076277670450508595,
+        "corner_accuracy": 0.903125,
+        "merge_accuracy": 0.99625,
+        "junction_recall_at_80": 0.6577540106951871,
+        "smooth_rejection_at_80": 0.02932551319648094
+      }
+    },
+    {
+      "epoch": 12,
+      "loss": 0.018533991015128856,
+      "smooth_raster_mae": 0.007256072014570236,
+      "corner_accuracy": 0.950625,
+      "merge_accuracy": 0.996875,
+      "seconds": 59.07630830900001,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007644781842827797,
+        "corner_accuracy": 0.914375,
+        "merge_accuracy": 0.996875,
+        "junction_recall_at_80": 0.7058823529411765,
+        "smooth_rejection_at_80": 0.03225806451612903
+      }
+    },
+    {
+      "epoch": 13,
+      "loss": 0.017731363019716423,
+      "smooth_raster_mae": 0.007273828145116568,
+      "corner_accuracy": 0.95375,
+      "merge_accuracy": 0.996875,
+      "seconds": 62.737963914999966,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007590322755277157,
+        "corner_accuracy": 0.915625,
+        "merge_accuracy": 0.9975,
+        "junction_recall_at_80": 0.6417112299465241,
+        "smooth_rejection_at_80": 0.021994134897360705
+      }
+    },
+    {
+      "epoch": 14,
+      "loss": 0.01689339765405233,
+      "smooth_raster_mae": 0.0072079012170434,
+      "corner_accuracy": 0.94125,
+      "merge_accuracy": 0.995,
+      "seconds": 66.041967624,
+      "complex_validation": {
+        "smooth_raster_mae": 0.0075673917308449745,
+        "corner_accuracy": 0.914375,
+        "merge_accuracy": 0.996875,
+        "junction_recall_at_80": 0.7593582887700535,
+        "smooth_rejection_at_80": 0.04398826979472141
+      }
+    },
+    {
+      "epoch": 15,
+      "loss": 0.016147490524876434,
+      "smooth_raster_mae": 0.007296521682292223,
+      "corner_accuracy": 0.949375,
+      "merge_accuracy": 0.995,
+      "seconds": 69.46850924799998,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007642079144716263,
+        "corner_accuracy": 0.93125,
+        "merge_accuracy": 0.996875,
+        "junction_recall_at_80": 0.6363636363636364,
+        "smooth_rejection_at_80": 0.017595307917888565
+      }
+    },
+    {
+      "epoch": 16,
+      "loss": 0.015659414371887666,
+      "smooth_raster_mae": 0.0072814398445189,
+      "corner_accuracy": 0.9525,
+      "merge_accuracy": 0.995,
+      "seconds": 72.700242285,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007641779724508524,
+        "corner_accuracy": 0.92625,
+        "merge_accuracy": 0.99625,
+        "junction_recall_at_80": 0.7379679144385026,
+        "smooth_rejection_at_80": 0.02932551319648094
+      }
+    },
+    {
+      "epoch": 17,
+      "loss": 0.014890227442096293,
+      "smooth_raster_mae": 0.007216481026262045,
+      "corner_accuracy": 0.946875,
+      "merge_accuracy": 0.995625,
+      "seconds": 76.03235881899997,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007560395170003176,
+        "corner_accuracy": 0.916875,
+        "merge_accuracy": 0.995625,
+        "junction_recall_at_80": 0.8181818181818182,
+        "smooth_rejection_at_80": 0.04105571847507331
+      }
+    },
+    {
+      "epoch": 18,
+      "loss": 0.014425296995755845,
+      "smooth_raster_mae": 0.0072629996575415134,
+      "corner_accuracy": 0.960625,
+      "merge_accuracy": 0.995625,
+      "seconds": 79.61284029299998,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007593228947371244,
+        "corner_accuracy": 0.92625,
+        "merge_accuracy": 0.996875,
+        "junction_recall_at_80": 0.732620320855615,
+        "smooth_rejection_at_80": 0.020527859237536656
+      }
+    },
+    {
+      "epoch": 19,
+      "loss": 0.013886423773272375,
+      "smooth_raster_mae": 0.007146735209971666,
+      "corner_accuracy": 0.94875,
+      "merge_accuracy": 0.994375,
+      "seconds": 82.945493204,
+      "complex_validation": {
+        "smooth_raster_mae": 0.0075003947131335735,
+        "corner_accuracy": 0.93625,
+        "merge_accuracy": 0.996875,
+        "junction_recall_at_80": 0.732620320855615,
+        "smooth_rejection_at_80": 0.021994134897360705
+      }
+    },
+    {
+      "epoch": 20,
+      "loss": 0.0135051504651134,
+      "smooth_raster_mae": 0.007249773479998112,
+      "corner_accuracy": 0.948125,
+      "merge_accuracy": 0.99625,
+      "seconds": 86.45127048299997,
+      "complex_validation": {
+        "smooth_raster_mae": 0.007541659288108349,
+        "corner_accuracy": 0.93125,
+        "merge_accuracy": 0.996875,
+        "junction_recall_at_80": 0.7647058823529411,
+        "smooth_rejection_at_80": 0.02932551319648094
+      }
+    }
+  ],
+  "seconds": 86.88889149699997,
+  "sha256": "1114cce481f66e53df0e62655058c6fd7daf941648a9fa8f1e78a4de2d60db75",
+  "initial_sha256": "6a449c7ba955f97c8968b2e906bbe087cdeba5f56259423b3748a73b56adc508",
+  "initial_test_metrics": {
+    "smooth_raster_mae": 0.007302342914044857,
+    "corner_accuracy": 0.950625,
+    "merge_accuracy": 0.991875
+  },
+  "initial_complex_test_metrics": {
+    "smooth_raster_mae": 0.007820169441401958,
+    "corner_accuracy": 0.840625,
+    "merge_accuracy": 0.990625,
+    "junction_recall_at_80": 0.038461538461538464,
+    "smooth_rejection_at_80": 0.015006821282401092
+  },
+  "learning_rate": 0.00027,
+  "complex_train_count": 9600,
+  "replay_count": 4800,
+  "complex_train_seed": 44811,
+  "complex_validation_seed": 60487,
+  "complex_test_seed": 817501,
+  "complex_test_metrics": {
+    "smooth_raster_mae": 0.007746956776827574,
+    "corner_accuracy": 0.911875,
+    "merge_accuracy": 0.999375,
+    "junction_recall_at_80": 0.8021978021978022,
+    "smooth_rejection_at_80": 0.03137789904502047
+  }
+}

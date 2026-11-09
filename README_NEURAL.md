@@ -14,6 +14,16 @@ python -m chromatic_vector references/head_shoulder_crop.png head.svg \
   --shape-report head.json --debug-dir debug/head
 ```
 
+Для эксперимента со сложными формами используйте отдельные дообученные веса. В режиме `poster` нейропредложения дополнительно проверяются по целому контуру, чтобы сохранить длинные плавные дуги.
+
+```bash
+python -m chromatic_vector references/head_shoulder_crop.png head-complex.svg \
+  --mode illustrative --preset poster --contour-method neural \
+  --neural-model models/bezier_patch_complex/model.onnx
+```
+
+Данные, команда обучения и проверки описаны в [карточке модели](models/bezier_patch_complex/MODEL_CARD.md).
+
 Для экспериментального слияния мелких областей добавьте `--neural-merge`. Оно выключено по умолчанию. `--neural-optimize-steps 0` оставляет предсказанные управляющие точки без локальной доработки; допустимо 0–20 шагов, по умолчанию 5. `--neural-model path/model.onnx` выбирает другую совместимую модель; рядом обязателен `metadata.json` с контрольной суммой.
 
 Для запуска достаточно обычных зависимостей проекта: ONNX исполняется через OpenCV DNN на CPU. PyTorch нужен только для повторного обучения. Веса поставляются в `models/bezier_patch_v1/`; копия ONNX и метаданных входит также в Python wheel. При отсутствии или повреждении весов режим выдаёт явную ошибку. Метод по умолчанию остаётся `bounded`, старые вызовы `precise` не меняются.

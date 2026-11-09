@@ -20,6 +20,22 @@ def sample_curves(curves, spacing=.25):
     return np.vstack((curves[0][0],*chunks)) if chunks else np.zeros((0,2))
 
 
+def turning_cost(curves):
+    """Measure abrupt direction changes at approximately one-pixel intervals."""
+    points = sample_curves(curves)
+    lengths = np.linalg.norm(np.diff(points, axis=0), axis=1)
+    if not len(lengths) or lengths.sum() < 2:
+        return 0.
+    distance = np.r_[0., np.cumsum(lengths)]
+    positions = np.linspace(0, distance[-1], int(np.ceil(distance[-1]))+1)
+    uniform = np.column_stack([np.interp(positions, distance, axis) for axis in points.T])
+    tangents = np.diff(uniform, axis=0)
+    tangents /= np.maximum(np.linalg.norm(tangents, axis=1, keepdims=True), 1e-12)
+    if np.allclose(points[0], points[-1], rtol=0., atol=1e-8):
+        tangents = np.vstack((tangents, tangents[0]))
+    return float(np.square(np.diff(tangents, axis=0)).sum())
+
+
 def _sharp_points(core, closed):
     # Identify actual corners from long straight runs, not 1px staircase turns.
     linear=cv2.approxPolyDP(core.astype(np.float32),0,closed).reshape(-1,2)

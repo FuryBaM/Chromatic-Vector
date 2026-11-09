@@ -3,7 +3,7 @@ import numpy as np
 from shapely.geometry import LineString, Point
 from shapely.strtree import STRtree
 from .shared import SharedBoundaryGeometry
-from .curve_fitting import fit_poster_curve, fit_shared_curve, sample_curves
+from .curve_fitting import fit_poster_curve, fit_shared_curve, sample_curves, turning_cost
 
 
 def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, method="bounded", neural_context=None,
@@ -11,7 +11,7 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
     from .unipolar import METHODS, fit_unipolar
     if method not in (*METHODS,'neural'):raise ValueError('Unknown contour method: '+method)
     fitter=fit_shared_curve if method in ('bounded','neural') else lambda raw,eps,smooth,err:fit_unipolar(raw,eps,smooth,err,method)
-    if poster and method=='bounded':
+    if poster and method in ('bounded', 'neural'):
         fitter=fit_poster_curve
     # RDP is float-stable across the two edge scanners; canonical anchor identical.
     graph=SharedBoundaryGeometry(edges,simplify,smooth,'rdp',max_error=max_error,region_styles=styles,
@@ -25,10 +25,22 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
         for chain_index,chain in enumerate(graph.chains):
             exact=bool(styles and any(styles.get(r)==(0.,0.) for r in chain.paired_regions))
             if exact:continue
-            bounded_curves[chain_index]=chain.cubics
             start_record=len(neural_context.records)
-            chain.cubics=fit_neural_chain(np.asarray(chain.vertices,float),chain.paired_regions,neural_context,simplify,smooth,max_error)
-            neural_records[chain_index]=(start_record,len(neural_context.records))
+            candidate=fit_neural_chain(np.asarray(chain.vertices,float),chain.paired_regions,neural_context,simplify,smooth,max_error)
+            end_record = len(neural_context.records)
+            neural_records[chain_index]=(start_record,end_record)
+            if poster:
+                accepted = [record for record in neural_context.records[start_record:end_record] if record['accepted']]
+                if not accepted:
+                    continue
+                # Local improvements can still turn a smooth ring or ribbon into a polygon.
+                if turning_cost(candidate) > 1.15*turning_cost(chain.cubics) + .04:
+                    for record in accepted:
+                        record['final_reason'] = 'chain_smoothness'
+                    neural_context.counters['whole_chain_rejections'] += 1
+                    continue
+            bounded_curves[chain_index]=chain.cubics
+            chain.cubics=candidate
     fallback=set(); reduced_fit=set(); lattice_fallback=set(); violations=0
     recover_bounded = method == 'bounded' and max_error > 0 and (simplify > 0 or smooth > 0)
     audit_passes = 5 if method == 'neural' else 3 + int(recover_bounded)
@@ -63,7 +75,7 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
                         local_eps, local_smooth = styles[region]
                         eps, tension = min(eps, local_eps), min(tension, local_smooth)
                 raw=np.asarray(chain.vertices,float)
-                retry = fitter if poster and method=='bounded' else fit_shared_curve
+                retry = fitter if poster and method in ('bounded', 'neural') else fit_shared_curve
                 chain.cubics=retry(raw,eps*.5,tension*.5,max_error)[0]
                 reduced_fit.add(i)
             elif i not in lattice_fallback:
@@ -85,8 +97,8 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
         for idx,(a,b) in neural_records.items():
             for record in neural_context.records[a:b]:
                 record['chain_uid']=f'boundary-{idx}'
-                record['emitted']=bool(record['accepted'] and idx not in fallback)
-                if record['accepted'] and idx in fallback:record['final_reason']='topology_fallback'
+                record['emitted']=bool(record['accepted'] and idx not in fallback and 'final_reason' not in record)
+                if record['accepted'] and idx in fallback:record.setdefault('final_reason','topology_fallback')
                 emitted+=record['emitted']
         neural_context.counters['emitted_segments']=emitted
         metrics['neural']=neural_context.report()

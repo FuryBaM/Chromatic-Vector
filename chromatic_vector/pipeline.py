@@ -73,8 +73,9 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
         region_alpha=np.zeros(len(current.sizes),np.uint8);region_alpha[current.labels.ravel()]=alpha.ravel()
         region_lock=np.bincount(current.labels.ravel(),weights=locked.ravel(),minlength=len(current.sizes))>0
         has_alpha=bool(np.any(alpha!=255))
+        exact_rectangles = config.contour_method == 'bounded' or (config.preset == 'poster' and config.contour_method == 'neural')
         styles={rid:(0.,0.) for rid in legacy.shapes if has_alpha or region_lock[rid] or
-            (legacy.shapes[rid].primitive=='rectangle-candidate' and (config.contour_method=='bounded' or
+            (legacy.shapes[rid].primitive=='rectangle-candidate' and (exact_rectangles or
              min(legacy.shapes[rid].bbox[2]-legacy.shapes[rid].bbox[0],legacy.shapes[rid].bbox[3]-legacy.shapes[rid].bbox[1])>=8))}
         context=NeuralContext(reference[...,:3],current.labels,current.region_colors,neural_model,config.neural_optimize_steps) if neural_model else None
         shared,metrics=safe_shared(edges,simplify,smooth,max_error,styles,method=config.contour_method,
