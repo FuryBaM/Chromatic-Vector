@@ -1,0 +1,213 @@
+{
+  "variant": "neural-lite",
+  "files": [
+    {
+      "path": "Native/ChromaticContours/CMakeLists.txt",
+      "sha256": "bcbff523e462b5bd92773df7bedbcb8d9ac99709c2ba95aa843608cad204f47e"
+    },
+    {
+      "path": "Native/ChromaticContours/include/chromatic_contours.h",
+      "sha256": "19700002865ff900c6ddbdf27d5a0ccebf7eca720af4736b910cd6c2d7c860c7"
+    },
+    {
+      "path": "Native/ChromaticContours/src/chromatic_contours.cpp",
+      "sha256": "54964a3872958379cc7169fb73c99545fc09a23a14877e9c55ffdffb8715e5d7"
+    },
+    {
+      "path": "README.md",
+      "sha256": "d63e6bc5be4dfd34bb8451aae247e3eaf9012b1f925259ef50bc242a370e8e9e"
+    },
+    {
+      "path": "README_NEURAL.md",
+      "sha256": "22a859695393c7dd5e6e7fd5a580b35f8a037d7ee355b948f22826a126e02407"
+    },
+    {
+      "path": "README_UNIPOLAR.md",
+      "sha256": "c30bf4e42b7c55a89b07e3fbc66521e615a740e165ed3815bf8d9d8bd5a6ac65"
+    },
+    {
+      "path": "THIRD_PARTY_NOTICES.md",
+      "sha256": "9a0e47ab853b21cb0a7200191c7fb5b5acf5b7ac20b1f7d0ba7ca1ba2999d3a2"
+    },
+    {
+      "path": "chromatic_vector/__init__.py",
+      "sha256": "9c7c4cbcabb7248ff1df8bb3d8dad3940bb39d7a73d66383e16255c38a85fc28"
+    },
+    {
+      "path": "chromatic_vector/__main__.py",
+      "sha256": "cf7390a2508a0fcad4777a4a629fc5212ab655cb45845975995f835676a834e3"
+    },
+    {
+      "path": "chromatic_vector/agglomerate.py",
+      "sha256": "b3199b8a7b6edc499957c1c237d2bf617dfd7c4c4f910a1dccf51a349713c8c1"
+    },
+    {
+      "path": "chromatic_vector/assets/bezier_patch_v1/metadata.json",
+      "sha256": "0c14664c12ca507634f2fba981190753c8a17ba130e5aeeb92fc2f357628ce45"
+    },
+    {
+      "path": "chromatic_vector/assets/bezier_patch_v1/model.onnx",
+      "sha256": "6a449c7ba955f97c8968b2e906bbe087cdeba5f56259423b3748a73b56adc508"
+    },
+    {
+      "path": "chromatic_vector/base_segmentation.py",
+      "sha256": "8b881e728ae88b62e6f0c2c5019cc7f5870779a7a9354a5106e5127b057a70f2"
+    },
+    {
+      "path": "chromatic_vector/cli.py",
+      "sha256": "fbdefb9dd90b407ac64bcdf52b39f8f285acefed753abc158987931e927466dd"
+    },
+    {
+      "path": "chromatic_vector/contours.py",
+      "sha256": "b1fd31b5ba6e85c8ab45f343409f925e21f64f11ae779c9c08b2fb95128e2c51"
+    },
+    {
+      "path": "chromatic_vector/corrections.py",
+      "sha256": "515add2806175a97d959f81df4ffa7ded6e0035a43d6f29f2d8887bd7c40ca25"
+    },
+    {
+      "path": "chromatic_vector/curve_fitting.py",
+      "sha256": "8dc8b189433144719132d9991a92f0fe69d87ed9a82f9662e92932da6c21e765"
+    },
+    {
+      "path": "chromatic_vector/flatten.py",
+      "sha256": "b67a507d5ab84315659c46580e8d2a93b31c19d401f2955d0e74696541efc4c0"
+    },
+    {
+      "path": "chromatic_vector/geometry.py",
+      "sha256": "1c96e6c2db89c9fe791e67ed2c115e1f02617e4244120e98fa11d31f067498e4"
+    },
+    {
+      "path": "chromatic_vector/hierarchy.py",
+      "sha256": "03ba0f7e02751e64448df3d8e6a7f5004c66c4518d915c3fb98bd3b67324d905"
+    },
+    {
+      "path": "chromatic_vector/metrics.py",
+      "sha256": "bd7b5fabad98e18fa66db67fe3bbb71fff32bb13320410bde5ca9b60d5b839ad"
+    },
+    {
+      "path": "chromatic_vector/modes.py",
+      "sha256": "e1355f4cab65a372f76a619c0d914ed6ada05b7699377272a89dec45b8c75b52"
+    },
+    {
+      "path": "chromatic_vector/native.py",
+      "sha256": "6f5483776c463537c9e5334feda877a3d93162de6724134d5ce1b843589d2c1f"
+    },
+    {
+      "path": "chromatic_vector/neural.py",
+      "sha256": "f24decb45f8c9b8721c2da34c11cb77fc84e0fdbc448cf1d1282d17ba924cc04"
+    },
+    {
+      "path": "chromatic_vector/neural_data.py",
+      "sha256": "ec16f40fbadc88302d41cf3f049157406a44497e42c473e36d38e6b0c749a2d4"
+    },
+    {
+      "path": "chromatic_vector/palette.py",
+      "sha256": "220c0093fd088425556499c2c9aa69514206d06b3b7cd30d142fd2e22d45641e"
+    },
+    {
+      "path": "chromatic_vector/pipeline.py",
+      "sha256": "6342d67664e47f1d33addaed03d572df957a1f40a7774802e681e50db880fc16"
+    },
+    {
+      "path": "chromatic_vector/refinement.py",
+      "sha256": "f71a96e1dd33949d332f99e849c96391e18469b8bb30cdfc1326af1c1a7985da"
+    },
+    {
+      "path": "chromatic_vector/shape_fitter.py",
+      "sha256": "69f9a4b0bf8816ca79e5a512d64a7c0680821e52e03f1419c23f255bc34fbd8d"
+    },
+    {
+      "path": "chromatic_vector/shape_graph.py",
+      "sha256": "b0dd8206ac263ee7a315146894bea98353c51713cb900d648fe4ec4641ca440c"
+    },
+    {
+      "path": "chromatic_vector/shape_optimizer.py",
+      "sha256": "1252a260c5cc467d8d81669a3fdfb45135e0132e6fe7fe8cf1f7cf7e2783da04"
+    },
+    {
+      "path": "chromatic_vector/shared.py",
+      "sha256": "441188d7907714da883262138a3a41216523022d2d9f9be018bb5aa7b374c9f9"
+    },
+    {
+      "path": "chromatic_vector/svg.py",
+      "sha256": "cd0d3c9b8bb31f319294429c26e89bb0b2ab4a8000f911b40b79317caabd47a4"
+    },
+    {
+      "path": "chromatic_vector/svg_shapes.py",
+      "sha256": "937d863ab8158b40fa47805cc8214f4d0762a9effe91f8dad5e75d2a262fe71e"
+    },
+    {
+      "path": "chromatic_vector/unipolar.py",
+      "sha256": "caaa090660dc7faa7729e2f416eef5ac1c3d8f9a08d1fd4f9a6d92a857eaa73a"
+    },
+    {
+      "path": "licenses/Unipolar-Gambit-MIT.txt",
+      "sha256": "a01a539c00b772df12fefb8ea07df97336827356d29da6a2b3b9c710c5e66045"
+    },
+    {
+      "path": "models/bezier_patch_v1/MODEL_CARD.md",
+      "sha256": "be483b02c02f72fa1d9446788f4d1e57f72e981981a4ba67eb7985c98b520859"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "ce7ea2aeb24b3ee04395a1379979069ae5d80123c344a35d269638a0a5acd00a"
+    },
+    {
+      "path": "references/head_shoulder_crop.png",
+      "sha256": "2045ca66b59054fe603e93963e9e282a57e22a082080e7b7aceb6ce04d953295"
+    },
+    {
+      "path": "tests/test_agglomeration.py",
+      "sha256": "6e07117e38036d19c9e6b6ffc69b5c860e6ea87816cc3234a78ea2ba455430aa"
+    },
+    {
+      "path": "tests/test_corrections.py",
+      "sha256": "834bd03058bdba424c91fc983192a853eae418b9d1dd147e368180d570498e45"
+    },
+    {
+      "path": "tests/test_illustrative.py",
+      "sha256": "a411d6375e3dcc4214bd48197c2df8f7311adb6645a582934b4b380762c3d007"
+    },
+    {
+      "path": "tests/test_native_parity.py",
+      "sha256": "b75d121590234bb2d6c48cfa8e09addd4b9fb38d5763a8fdfce44310d6b69dc8"
+    },
+    {
+      "path": "tests/test_neural.py",
+      "sha256": "9af6a6ae10170be8804151217cd8a674e87996b278c5dc1c0978288cf0b5f4ec"
+    },
+    {
+      "path": "tests/test_segmentation_svg.py",
+      "sha256": "bbf17af8cf9c6e081076b6068528584d56c5919792b441e88fb598fc6c63bfaf"
+    },
+    {
+      "path": "tests/test_shape_graph.py",
+      "sha256": "97b46e724ccf15223888e1de38af9eaa1c23078aed906cfa6857bf1fba98e5b6"
+    },
+    {
+      "path": "tests/test_shared_geometry.py",
+      "sha256": "d2b91e6d563ee781c6927f3613e82fb2ac34716c0a81aa7f5b12b92d05721309"
+    },
+    {
+      "path": "tests/test_smooth_vector.py",
+      "sha256": "3a97d080e82302157a6415c9ed25d3b5bcea5a6b4807a17f840e3983a4d8cea0"
+    },
+    {
+      "path": "tests/test_topology.py",
+      "sha256": "6828fce1a1f0f30e66fc642af8d54eae73da9945be1a70823ac69baf1edfa9ed"
+    },
+    {
+      "path": "tests/test_unipolar.py",
+      "sha256": "116ce64582d4ad1e10a6a0651ad86a77db49a9f5413315f7fc7e457d5c0406ee"
+    },
+    {
+      "path": "training/export_gallery.py",
+      "sha256": "a8bcd677c9a8db9237a2d91454992db985cb30a4791bcba81cc7e9061be004e6"
+    },
+    {
+      "path": "training/train_bezier.py",
+      "sha256": "875aed41669454d0dc8474a7b3337f2eff75e867be8fe811b7fecee7e04abdd1"
+    }
+  ]
+}

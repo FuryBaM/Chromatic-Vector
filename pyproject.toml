@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chromatic-vector"
+version = "0.7.0.dev1"
+description = "Standalone palette-region vectorizer; shape-first layered SVG, edge-aware shape budget, shared boundaries and exact primitives"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = ["numpy>=1.24", "Pillow>=10", "opencv-python-headless>=4.8", "scipy>=1.11", "CairoSVG>=2.7", "shapely>=2"]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+train = ["torch>=2.2", "onnx>=1.16"]
+
+[project.scripts]
+chromatic-vector = "chromatic_vector.cli:main"
+
+[tool.setuptools]
+license-files = ["licenses/Unipolar-Gambit-MIT.txt", "THIRD_PARTY_NOTICES.md"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["chromatic_vector*"]
+
+[tool.setuptools.package-data]
+chromatic_vector = ["assets/bezier_patch_v1/*.onnx", "assets/bezier_patch_v1/*.json"]

@@ -1,0 +1,161 @@
+{
+  "schema": 1,
+  "architecture": "PatchBezier-v1",
+  "patch_size": 64,
+  "input_channels": [
+    "R",
+    "G",
+    "B",
+    "region_A",
+    "raw_boundary"
+  ],
+  "train_count": 18000,
+  "validation_count": 1600,
+  "test_count": 1600,
+  "train_seed": 23,
+  "validation_seed": 1234,
+  "test_seed": 198761,
+  "synthetic_only": true,
+  "generator_version": 2,
+  "photo_fixtures_used_in_training": false,
+  "outputs": [
+    "p1x",
+    "p1y",
+    "p2x",
+    "p2y",
+    "corner_logit",
+    "merge_logit"
+  ],
+  "test_metrics": {
+    "smooth_raster_mae": 0.007302343339553939,
+    "corner_accuracy": 0.950625,
+    "merge_accuracy": 0.991875,
+    "straight_raster_mae": 0.05529191344976425
+  },
+  "opencv_pytorch_max_error": 3.814697265625e-06,
+  "history": [
+    {
+      "epoch": 1,
+      "loss": 0.0754741260927197,
+      "smooth_raster_mae": 0.009336914108384267,
+      "corner_accuracy": 0.77875,
+      "merge_accuracy": 0.870625,
+      "seconds": 28.215403066000363
+    },
+    {
+      "epoch": 2,
+      "loss": 0.050561694917103925,
+      "smooth_raster_mae": 0.008267628806996592,
+      "corner_accuracy": 0.83375,
+      "merge_accuracy": 0.88625,
+      "seconds": 37.508034511000005
+    },
+    {
+      "epoch": 3,
+      "loss": 0.04462957025525418,
+      "smooth_raster_mae": 0.008159907772746269,
+      "corner_accuracy": 0.856875,
+      "merge_accuracy": 0.876875,
+      "seconds": 45.84835668300002
+    },
+    {
+      "epoch": 4,
+      "loss": 0.03995108408919463,
+      "smooth_raster_mae": 0.007765657441528414,
+      "corner_accuracy": 0.868125,
+      "merge_accuracy": 0.924375,
+      "seconds": 54.35433006900166
+    },
+    {
+      "epoch": 5,
+      "loss": 0.034683306377830236,
+      "smooth_raster_mae": 0.007543936686228595,
+      "corner_accuracy": 0.88625,
+      "merge_accuracy": 0.94,
+      "seconds": 62.59006851800041
+    },
+    {
+      "epoch": 6,
+      "loss": 0.029648158131233344,
+      "smooth_raster_mae": 0.007380520243064633,
+      "corner_accuracy": 0.915625,
+      "merge_accuracy": 0.959375,
+      "seconds": 71.0491741599999
+    },
+    {
+      "epoch": 7,
+      "loss": 0.02555922840239731,
+      "smooth_raster_mae": 0.007304795035971827,
+      "corner_accuracy": 0.9325,
+      "merge_accuracy": 0.9675,
+      "seconds": 79.81361823000043
+    },
+    {
+      "epoch": 8,
+      "loss": 0.022197008608503543,
+      "smooth_raster_mae": 0.007910711548382616,
+      "corner_accuracy": 0.92625,
+      "merge_accuracy": 0.975,
+      "seconds": 88.30926071900103
+    },
+    {
+      "epoch": 9,
+      "loss": 0.01993548025291228,
+      "smooth_raster_mae": 0.008213561301610233,
+      "corner_accuracy": 0.914375,
+      "merge_accuracy": 0.9825,
+      "seconds": 96.8945223970004
+    },
+    {
+      "epoch": 10,
+      "loss": 0.018206574729518265,
+      "smooth_raster_mae": 0.007399973850884375,
+      "corner_accuracy": 0.93875,
+      "merge_accuracy": 0.994375,
+      "seconds": 105.34370648000004
+    },
+    {
+      "epoch": 11,
+      "loss": 0.016989234095135478,
+      "smooth_raster_mae": 0.008128257887230055,
+      "corner_accuracy": 0.946875,
+      "merge_accuracy": 0.994375,
+      "seconds": 114.72028852400035
+    },
+    {
+      "epoch": 12,
+      "loss": 0.01568722460709565,
+      "smooth_raster_mae": 0.007294341761215557,
+      "corner_accuracy": 0.95375,
+      "merge_accuracy": 0.994375,
+      "seconds": 123.00626397300039
+    },
+    {
+      "epoch": 13,
+      "loss": 0.014685150949244804,
+      "smooth_raster_mae": 0.007364749916762646,
+      "corner_accuracy": 0.953125,
+      "merge_accuracy": 0.993125,
+      "seconds": 131.45044177199998
+    },
+    {
+      "epoch": 14,
+      "loss": 0.013875590511828873,
+      "smooth_raster_mae": 0.007754330087274346,
+      "corner_accuracy": 0.948125,
+      "merge_accuracy": 0.995,
+      "seconds": 139.6144400000012
+    }
+  ],
+  "seconds": 139.93273728700115,
+  "sha256": "6a449c7ba955f97c8968b2e906bbe087cdeba5f56259423b3748a73b56adc508",
+  "selected_epoch": 12,
+  "generator_sha256": "ec16f40fbadc88302d41cf3f049157406a44497e42c473e36d38e6b0c749a2d4",
+  "trainer_sha256": "875aed41669454d0dc8474a7b3337f2eff75e867be8fe811b7fecee7e04abdd1",
+  "environment": {
+    "torch": "2.15.0+cpu",
+    "numpy": "2.3.5",
+    "opencv-python-headless": "5.0.0.93",
+    "onnx": "1.23.2"
+  }
+}

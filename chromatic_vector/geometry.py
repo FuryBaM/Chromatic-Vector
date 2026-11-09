@@ -1,0 +1,69 @@
+"""Audit canonical curves before serialization; unsafe chains return to lattice."""
+import numpy as np
+from shapely.geometry import LineString, Point
+from shapely.strtree import STRtree
+from .shared import SharedBoundaryGeometry
+from .curve_fitting import fit_shared_curve, sample_curves
+
+
+def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, method="bounded", neural_context=None):
+    from .unipolar import METHODS, fit_unipolar
+    if method not in (*METHODS,'neural'):raise ValueError('Unknown contour method: '+method)
+    fitter=fit_shared_curve if method in ('bounded','neural') else lambda raw,eps,smooth,err:fit_unipolar(raw,eps,smooth,err,method)
+    # RDP is float-stable across the two edge scanners; canonical anchor identical.
+    graph=SharedBoundaryGeometry(edges,simplify,smooth,'rdp',max_error=max_error,region_styles=styles,
+                                 chain_fitter=fitter)
+    neural_records={}
+    if method=='neural':
+        if neural_context is None:raise ValueError('Neural contours require source RGB, region labels and trained model context')
+        from .neural import fit_neural_chain
+        neural_context.score_merge_pairs(graph.chains,styles)
+        for chain_index,chain in enumerate(graph.chains):
+            exact=bool(styles and any(styles.get(r)==(0.,0.) for r in chain.paired_regions))
+            if exact:continue
+            start_record=len(neural_context.records)
+            chain.cubics=fit_neural_chain(np.asarray(chain.vertices,float),chain.paired_regions,neural_context,simplify,smooth,max_error)
+            neural_records[chain_index]=(start_record,len(neural_context.records))
+    fallback=set(); violations=0
+    for attempt in range(3):
+        lines=[]
+        for chain in graph.chains:
+            points=sample_curves(chain.cubics,spacing=.25)
+            lines.append(LineString(points))
+        tree=STRtree(lines); bad=set()
+        for i,line in enumerate(lines):
+            if not line.is_simple: bad.add(i)
+            for raw_j in tree.query(line,predicate='intersects'):
+                j=int(raw_j)
+                if j<=i: continue
+                intersection=line.intersection(lines[j])
+                common=set((graph.chains[i].vertices[0],graph.chains[i].vertices[-1])) & set((graph.chains[j].vertices[0],graph.chains[j].vertices[-1]))
+                if intersection.geom_type=='Point': points=[intersection]
+                elif intersection.geom_type=='MultiPoint': points=list(intersection.geoms)
+                else: bad.update((i,j));continue
+                if any(not any(p.distance(Point(v))<1e-7 for v in common) for p in points): bad.update((i,j))
+        if not bad: break
+        violations+=len(bad)
+        for i in bad:
+            graph.chains[i].cubics=fit_shared_curve(np.asarray(graph.chains[i].vertices,float),0,0,0)[0]
+        fallback.update(bad)
+    else:
+        # Whole-partition fallback has the original traced topology by construction.
+        for i,chain in enumerate(graph.chains):
+            chain.cubics=fit_shared_curve(np.asarray(chain.vertices,float),0,0,0)[0]
+            fallback.add(i)
+    graph.curve_count=sum(len(c.cubics) for c in graph.chains)
+    metrics=dict(contour_method=method,canonical_boundaries=len(graph.chains),intersection_fallbacks=len(fallback),
+                 detected_unsafe_chains=violations,unhandled_topology_violations=0,
+                 guard_corrections=graph.geometry_corrections,guard_fallbacks=graph.geometry_fallbacks)
+    if method=='neural':
+        emitted=0
+        for idx,(a,b) in neural_records.items():
+            for record in neural_context.records[a:b]:
+                record['chain_uid']=f'boundary-{idx}'
+                record['emitted']=bool(record['accepted'] and idx not in fallback)
+                if record['accepted'] and idx in fallback:record['final_reason']='topology_fallback'
+                emitted+=record['emitted']
+        neural_context.counters['emitted_segments']=emitted
+        metrics['neural']=neural_context.report()
+    return graph,metrics
