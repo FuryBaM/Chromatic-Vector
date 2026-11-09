@@ -33,6 +33,43 @@ def test_closed_circle_has_curves_and_continuous_anchor_tangent():
     assert np.max(np.abs(radius-1))<.06
 
 
+def test_neural_self_intersection_recovers_smooth_bounded_contour(monkeypatch):
+    from collections import Counter
+    from chromatic_vector import neural
+
+    class Context:
+        def __init__(self):
+            self.records = []
+            self.counters = Counter()
+
+        def score_merge_pairs(self, chains, styles):
+            pass
+
+        def report(self):
+            return self.records
+
+    def crossing_prediction(raw, pair, context, simplify, smooth, max_error):
+        if pair != (0, 1):
+            return fit_shared_curve(raw, simplify, smooth, max_error)[0]
+        context.records.append({'accepted': True})
+        points = np.array([raw[0], [58, 63], [30, 63], [58, 22], raw[0]])
+        return [(a, a, b, b) for a, b in zip(points, points[1:])]
+
+    monkeypatch.setattr(neural, 'fit_neural_chain', crossing_prediction)
+    y, x = np.indices((85, 95))
+    labels = (((x+.5-47)/29)**2 + ((y+.5-42)/26)**2 <= 1).astype(np.int32)
+    edges = extract_edges(labels)
+    options = dict(simplify=1.1, smooth=.9, max_error=1.1)
+    bounded, _ = safe_shared(edges, **options)
+    recovered, metrics = safe_shared(edges, method='neural', neural_context=Context(), **options)
+    expected = next(chain.cubics for chain in bounded.chains if chain.paired_regions == (0, 1))
+    actual = next(chain.cubics for chain in recovered.chains if chain.paired_regions == (0, 1))
+    np.testing.assert_array_equal(actual, expected)
+    assert metrics['intersection_fallbacks'] == 1
+    assert metrics['lattice_fallbacks'] == 0
+    assert metrics['neural'][0]['emitted'] is False
+
+
 def test_large_opaque_render_is_antialiased_editable_and_has_no_seams(tmp_path):
     y,x=np.indices((85,95));mask=((x+.5-47)/29)**2+((y+.5-42)/26)**2<=1
     rgba=np.full((85,95,4),255,np.uint8);rgba[mask,:3]=(30,80,130)

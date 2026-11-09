@@ -1,4 +1,4 @@
-"""Audit canonical curves before serialization; unsafe chains return to lattice."""
+"""Audit canonical curves before serialization and recover unsafe chains."""
 import numpy as np
 from shapely.geometry import LineString, Point
 from shapely.strtree import STRtree
@@ -14,6 +14,7 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
     graph=SharedBoundaryGeometry(edges,simplify,smooth,'rdp',max_error=max_error,region_styles=styles,
                                  chain_fitter=fitter)
     neural_records={}
+    bounded_curves={}
     if method=='neural':
         if neural_context is None:raise ValueError('Neural contours require source RGB, region labels and trained model context')
         from .neural import fit_neural_chain
@@ -21,11 +22,12 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
         for chain_index,chain in enumerate(graph.chains):
             exact=bool(styles and any(styles.get(r)==(0.,0.) for r in chain.paired_regions))
             if exact:continue
+            bounded_curves[chain_index]=chain.cubics
             start_record=len(neural_context.records)
             chain.cubics=fit_neural_chain(np.asarray(chain.vertices,float),chain.paired_regions,neural_context,simplify,smooth,max_error)
             neural_records[chain_index]=(start_record,len(neural_context.records))
-    fallback=set(); violations=0
-    for attempt in range(3):
+    fallback=set(); reduced_fit=set(); lattice_fallback=set(); violations=0
+    for attempt in range(5 if method=='neural' else 3):
         lines=[]
         for chain in graph.chains:
             points=sample_curves(chain.cubics,spacing=.25)
@@ -45,16 +47,32 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
         if not bad: break
         violations+=len(bad)
         for i in bad:
-            graph.chains[i].cubics=fit_shared_curve(np.asarray(graph.chains[i].vertices,float),0,0,0)[0]
+            chain=graph.chains[i]
+            # Audit the original bounded fit before reverting to the pixel grid.
+            if i in bounded_curves:
+                chain.cubics=bounded_curves.pop(i)
+            elif i in neural_records and i not in reduced_fit:
+                eps, tension = simplify, smooth
+                for region in chain.paired_regions:
+                    if styles and region in styles:
+                        local_eps, local_smooth = styles[region]
+                        eps, tension = min(eps, local_eps), min(tension, local_smooth)
+                raw=np.asarray(chain.vertices,float)
+                chain.cubics=fit_shared_curve(raw,eps*.5,tension*.5,max_error)[0]
+                reduced_fit.add(i)
+            elif i not in lattice_fallback:
+                chain.cubics=fit_shared_curve(np.asarray(chain.vertices,float),0,0,0)[0]
+                lattice_fallback.add(i)
         fallback.update(bad)
     else:
         # Whole-partition fallback has the original traced topology by construction.
         for i,chain in enumerate(graph.chains):
             chain.cubics=fit_shared_curve(np.asarray(chain.vertices,float),0,0,0)[0]
             fallback.add(i)
+            lattice_fallback.add(i)
     graph.curve_count=sum(len(c.cubics) for c in graph.chains)
     metrics=dict(contour_method=method,canonical_boundaries=len(graph.chains),intersection_fallbacks=len(fallback),
-                 detected_unsafe_chains=violations,unhandled_topology_violations=0,
+                 lattice_fallbacks=len(lattice_fallback),detected_unsafe_chains=violations,unhandled_topology_violations=0,
                  guard_corrections=graph.geometry_corrections,guard_fallbacks=graph.geometry_fallbacks)
     if method=='neural':
         emitted=0
