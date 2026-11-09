@@ -47,9 +47,14 @@ def test_poster_simplifies_reference_and_keeps_major_edges(tmp_path):
     assert stats['config']['target_shapes'] == 120
     assert stats['config']['max_error'] == 1.7
     assert stats['shape_count'] < 160
-    assert stats['accepted_patches'] <= stats['config']['detail_budget']
+    assert 24 <= stats['accepted_patches'] <= stats['config']['detail_budget']
     assert stats['metrics_after']['edge_f1']['1'] > .75
     assert stats['metrics_after']['alpha_mae'] == 0
+    mouth = np.s_[89:97, 153:164, :3]
+    expected = np.asarray(Image.open(source).convert('RGBA'), dtype=float)[mouth]
+    base = np.asarray(Image.open(debug / 'primary_shapes.png'), dtype=float)[mouth]
+    refined = render_svg(svg)[mouth]
+    assert np.abs(refined - expected).mean() < .95 * np.abs(base - expected).mean()
     data = json.loads(report.read_text(encoding='utf-8'))
     assert sum(len(chain['cubics']) for chain in data['boundaries']) < 1050
     shapes = {shape['uid']: shape for shape in data['shapes']}

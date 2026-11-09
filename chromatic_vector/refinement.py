@@ -10,18 +10,33 @@ from .metrics import render_svg, residual, objective
 
 
 def mask_path(mask, x=0, y=0, method="bounded", *, poster=False):
+    subpixel = poster and method == 'bounded' and mask.size <= 16384
+    if subpixel:
+        scale = 3
+        # Interpolate the mask before tracing so small curved marks can leave the pixel grid.
+        padded = np.pad(mask.astype(np.float32), 1)
+        coverage = cv2.resize(padded, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
+        mask = coverage >= .5
     edges=extract_edges(mask.astype(np.int32))
     rings=trace_rings(edges)
     if 1 not in rings: return ''
     # Smooth vector patches as well as the base: adding raw staircase details
     # would reintroduce the same defect after a successful base fit.
     from .geometry import safe_shared
-    if x or y:
+    if (x or y) and not subpixel:
         edges=edges.copy();edges[:,(1,3)]+=x;edges[:,(2,4)]+=y
         rings=trace_rings(edges)
-    settings = dict(simplify=1., smooth=.85, max_error=1.05) if poster and method=='bounded' else dict(
-        simplify=.8, smooth=.7, max_error=.8)
+    if subpixel:
+        settings = dict(simplify=1.8, smooth=.9, max_error=2.)
+    elif poster and method == 'bounded':
+        settings = dict(simplify=1., smooth=.85, max_error=1.05)
+    else:
+        settings = dict(simplify=.8, smooth=.7, max_error=.8)
     graph,_=safe_shared(edges,method=method,poster=poster,**settings)
+    if subpixel:
+        origin = np.array((x-1, y-1))
+        for chain in graph.chains:
+            chain.cubics = [tuple(point / scale + origin for point in curve) for curve in chain.cubics]
     return ' '.join(graph.paths(rings)[1])
 
 
@@ -37,12 +52,26 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
     colors=min(48,max(config.base_colors+8,config.base_colors*2),source.shape[0]*source.shape[1])
     if colors<2: return rendered,dict(proposals=0,accepted_patches=0,rejected_patches=0,patch_log=[],objective_before=initial_objective,objective_after=initial_objective),residual_images
     poster = config.preset == 'poster'
+    min_area = 2 if poster else 5
     proposal_rgb = flat
     if poster:
         opaque = source[..., 3] == 255
         proposal_rgb = flat.copy()
         proposal_rgb[opaque] = source[..., :3][opaque]
     ids=quantize(proposal_rgb,colors,config.seed)
+    if poster:
+        gray = cv2.cvtColor(proposal_rgb, cv2.COLOR_RGB2GRAY)
+        radius = min(7, max(2, round(min(gray.shape) / 95)))
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2*radius+1, 2*radius+1))
+        dark = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kernel)
+        light = cv2.morphologyEx(gray, cv2.MORPH_TOPHAT, kernel)
+        contrast = np.maximum(dark, light)
+        base_gray = cv2.cvtColor(rendered[..., :3], cv2.COLOR_RGB2GRAY)
+        difference = gray.astype(np.int16) - base_gray
+        # Keep narrow dark and light marks that a global palette would split or average away.
+        eligible = opaque & ~locked
+        ids[eligible & (dark >= 17) & (difference <= -18)] = colors
+        ids[eligible & (light >= 17) & (difference >= 18)] = colors + 1
     nbase=int(labels.max())+1
     combos=ids.astype(np.int64)*nbase+labels
     _,dense=np.unique(combos,return_inverse=True)
@@ -55,15 +84,19 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
         high=cv2.morphologyEx(high.astype(np.uint8),cv2.MORPH_CLOSE,np.ones((3,3),np.uint8))>0
         candidates=[]
         for rid,sl in enumerate(slices):
-            if sl is None or rid in used or fine.sizes[rid]<5: continue
+            if sl is None or rid in used or fine.sizes[rid]<min_area: continue
             local=fine.labels[sl]==rid
             eligible=local & high[sl]
             if not eligible.any(): continue
             score=float((error[sl]*eligible).sum())*(1+min(1,float(fine.sizes[rid])/100))
             if poster:
-                # Spend the small accent budget on edges instead of broad shading residuals.
+                # Small strong marks can compete with large patches of weaker residual.
                 edge_strength = float(np.mean(importance[sl][eligible]))
-                score *= edge_strength ** 2
+                local_contrast = float(np.mean(contrast[sl][eligible])) / 32
+                score *= (edge_strength + local_contrast)**2 / np.sqrt(np.count_nonzero(eligible))
+                if np.any(ids[sl][eligible] == colors):
+                    # Dark engraving tends to occupy fewer pixels than the adjacent highlights.
+                    score *= 2.1
             candidates.append((-score,rid,sl))
         candidates.sort(key=lambda c:(c[0],c[1]))
         pass_shapes=list(document.shapes); pass_render=rendered.copy();pass_log_start=len(log)
@@ -74,12 +107,16 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
             y0,y1=sl[0].start,sl[0].stop;x0,x1=sl[1].start,sl[1].stop
             mask=(fine.labels[sl]==rid)&~locked[sl]&(source[sl][...,3]==255)
             ys,xs=np.nonzero(mask)
-            if len(xs)<5: continue
+            if len(xs)<min_area: continue
             parent_id=int(labels[y0+ys[0],x0+xs[0]])
             parent=base_by_region.get(parent_id)
             if parent is None or parent.locked: continue
             # All proposal pixels belong to one base region by construction.
-            color=tuple(map(int,np.rint(source[sl][...,:3][mask].mean(axis=0))))
+            pixels = source[sl][...,:3][mask]
+            weights = None
+            if poster and ids[y0+ys[0], x0+xs[0]] >= colors:
+                weights = contrast[sl][mask]
+            color=tuple(map(int,np.rint(np.average(pixels, axis=0, weights=weights))))
             delta = np.subtract(color, parent.fill[:3])
             if poster and np.linalg.norm(delta) < (24 if parent.layer == 'background' else 12):
                 continue
