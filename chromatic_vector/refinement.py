@@ -9,6 +9,49 @@ from .hierarchy import VectorShape
 from .metrics import render_svg, residual, objective
 
 
+def _directional_kernel(dx, dy, radius):
+    kernel = np.zeros((2*radius+1, 2*radius+1), np.uint8)
+    x, y = np.rint(np.array([dx, dy])*radius).astype(int)
+    cv2.line(kernel, (radius-x, radius-y), (radius+x, radius+y), 1)
+    return kernel
+
+
+def continue_dark_accents(gray, seeds, editable, dark_response, signed_error, radius):
+    """Continue an existing dark trough where both of its raster flanks are brighter."""
+    if not seeds.any():
+        return seeds.copy()
+    h, w = gray.shape
+    luma = cv2.GaussianBlur(gray.astype(np.float32), (3, 3), .65)
+    offset = min(6., radius + 1.)
+    reach = min(12, max(7, 4*radius))
+    restored = seeds.copy()
+    ridge = np.zeros_like(luma)
+    for angle in np.linspace(0, np.pi, 16, endpoint=False):
+        dx, dy = np.cos(angle), np.sin(angle)
+        normal = np.array((-dy, dx))*offset
+        flanks = [cv2.warpAffine(luma, np.float32([[1, 0, sign*normal[0]], [0, 1, sign*normal[1]]]),
+                                 (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE)
+                  for sign in (-1, 1)]
+        response = np.minimum(flanks[0], flanks[1]) - luma
+        ridge = np.maximum(ridge, response)
+        aligned = (seeds & (response >= 8)).astype(np.uint8)
+        close = cv2.morphologyEx(aligned, cv2.MORPH_CLOSE, _directional_kernel(dx, dy, reach//2+1),
+                                 borderType=cv2.BORDER_CONSTANT, borderValue=0).astype(bool)
+        tips = cv2.dilate(aligned, _directional_kernel(dx, dy, reach)).astype(bool)
+        bridge = close & (response >= 4) & (dark_response >= 7) & (signed_error >= -3)
+        taper = tips & (response >= 6) & (dark_response >= 9) & (signed_error >= 5)
+        restored |= editable & (bridge | taper)
+    # Let a short bend leave the straight corridor, while requiring source
+    # evidence and a four-connected path back to a directional continuation.
+    corridor = cv2.dilate(restored.astype(np.uint8),
+                          cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))).astype(bool)
+    support = corridor & editable & (ridge >= 4) & (dark_response >= 7) & (signed_error >= -3)
+    count, components = cv2.connectedComponents((restored | support).astype(np.uint8), connectivity=4)
+    anchored = np.zeros(count, bool)
+    anchored[components[restored]] = True
+    return anchored[components]
+
+
 def mask_path(mask, x=0, y=0, method="bounded", *, poster=False):
     subpixel = poster and method == 'bounded' and mask.size <= 16384
     if subpixel:
@@ -87,6 +130,11 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
             # Reconnect small gaps across shading planes only where the raster supports the accent.
             support = foreground_pixels & (response >= 10) & (signed_error >= -3) & (ids < colors)
             accents = seeds | (closed & support)
+            if accent_id == colors:
+                continued = continue_dark_accents(gray, seeds, foreground_pixels & (ids < colors),
+                                                  dark, signed_error, radius)
+                continued_dark = continued & ~accents
+                accents |= continued
             owners[accents] = nbase
             ids[accents] = accent_id
         owner_count += 1
@@ -164,6 +212,8 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
             entry=dict(pass_index=pass_index,uid=shape.uid,bbox=list(bounds),source_region_id=rid,
                        objective_delta=-gain,before=before_value,after=after_value,
                        accepted=bool(gain>1e-8),reason='objective_improved' if gain>1e-8 else 'complexity_or_residual')
+            if poster and (continued_dark[sl] & mask).any():
+                entry['continued_dark_pixels'] = int((continued_dark[sl] & mask).sum())
             if gain>1e-8:
                 accepted+=1
                 rendered[roi]=after

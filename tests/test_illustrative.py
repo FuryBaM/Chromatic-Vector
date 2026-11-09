@@ -17,6 +17,7 @@ from chromatic_vector.geometry import safe_shared
 from chromatic_vector.contours import extract_edges, trace_rings, signed_area
 from chromatic_vector.hierarchy import containment_parents
 from chromatic_vector.shape_graph import build_document
+from chromatic_vector.refinement import continue_dark_accents
 
 
 def run(tmp_path, rgba, **kwargs):
@@ -37,6 +38,26 @@ def test_presets_explicit_override():
     c=IllustrativeConfig.resolve('draft',base_colors=22,detail_budget=7)
     assert (c.base_colors,c.detail_budget,c.refine_passes)==(22,7,1)
 
+def test_directional_dark_accents_follow_supported_ribbons():
+    gray = np.full((42, 58), 170, np.uint8)
+    gray[13:16, 7:49] = 65
+    gray[22:25, 7:49] = 65  # Similar but unseeded neighboring stripe.
+    seeds = np.zeros(gray.shape, bool)
+    seeds[14, 8:17] = seeds[14, 25:34] = True
+    editable = np.ones_like(seeds)
+    editable[:, 38:41] = False
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5))
+    dark = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kernel)
+    restored = continue_dark_accents(gray, seeds, editable, dark, np.full(gray.shape, 10), radius=2)
+    assert restored[14, 17:25].all()
+    assert not restored[22:25].any()
+    assert not restored[:, 38:41].any()
+    gray[:, 20:23] = 170
+    dark = cv2.morphologyEx(gray, cv2.MORPH_BLACKHAT, kernel)
+    unsupported = continue_dark_accents(gray, seeds, editable, dark, np.full(gray.shape, 10), radius=2)
+    assert not unsupported[:, 20:23].any()
+
+
 def test_poster_simplifies_reference_and_keeps_major_edges(tmp_path):
     source = Path(__file__).resolve().parents[1] / 'references' / 'head_shoulder_crop.png'
     svg = tmp_path / 'poster.svg'
@@ -56,6 +77,10 @@ def test_poster_simplifies_reference_and_keeps_major_edges(tmp_path):
     refined = render_svg(svg)[mouth]
     assert np.abs(refined - expected).mean() < .95 * np.abs(base - expected).mean()
     data = json.loads(report.read_text(encoding='utf-8'))
+    assert any(patch['accepted'] and patch.get('continued_dark_pixels', 0) > 0
+               and patch['bbox'][0] <= 80 and patch['bbox'][2] >= 124
+               and 57 <= patch['bbox'][1] <= 72 and 85 <= patch['bbox'][3] <= 110
+               for patch in data['refinement']['patch_log'])
     assert sum(len(chain['cubics']) for chain in data['boundaries']) < 1050
     shapes = {shape['uid']: shape for shape in data['shapes']}
     base_regions = {shape['source_region_ids'][0]: shape for shape in shapes.values() if shape['kind'] == 'base'}
