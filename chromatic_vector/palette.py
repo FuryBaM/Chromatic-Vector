@@ -12,6 +12,15 @@ class Segmentation:
     sizes: np.ndarray  # region-count int64
 
 
+def poster_contrast(rgb):
+    """Separate ink-dark shadows from lit planes with a hue-preserving tone curve."""
+    light = np.dot(rgb, (.2126, .7152, .0722))
+    target = np.interp(light, (0, 11, 32, 65, 100, 145, 180, 225, 255),
+                       (0, 11, 23, 65, 111, 160, 194, 231, 255))
+    shift = round(np.clip(.6 * (target - light), -min(rgb), 255 - max(rgb)))
+    return tuple(channel + shift for channel in rgb)
+
+
 def _oklab(rgb: np.ndarray) -> np.ndarray:
     """sRGB uint8 -> OKLab float32 (D65)."""
     v = rgb.astype(np.float32) / 255.0

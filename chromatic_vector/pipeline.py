@@ -1,5 +1,6 @@
 """Optional illustrative orchestration. The v0.5 precise pipeline is untouched."""
 from collections import Counter
+from dataclasses import replace
 from html import escape
 import json
 from pathlib import Path
@@ -12,6 +13,7 @@ from .modes import IllustrativeConfig
 from . import __version__
 from .flatten import flatten_rgba, pyramid
 from .base_segmentation import propose, merge_planes
+from .palette import poster_contrast
 from .contours import extract_edges, trace_rings, signed_area
 from .native import extract_native_edges
 from .shape_graph import build_document
@@ -168,8 +170,8 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
                                   locked=bool(region_lock[rid]),holes=len(shape.holes)))
     geometry_metrics['alpha_exact']=has_alpha
     geometry_metrics['seam_underpaint']=not has_alpha and not transparent_background
-    if geometry_metrics['seam_underpaint'] and shapes:
-        dominant=max(shapes,key=lambda s:s.area)
+    dominant = max(shapes, key=lambda shape: shape.area) if geometry_metrics['seam_underpaint'] and shapes else None
+    if dominant is not None:
         geometry_metrics['opaque_backdrop']='#'+''.join(f'{v:02x}' for v in dominant.fill[:3])
     document=VectorDocument(alpha.shape[1],alpha.shape[0],shapes,boundaries,geometry_metrics)
     stamp('geometry_hierarchy_fit')
@@ -179,6 +181,17 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
     for rid in skip: expected[...,3][seg.labels==rid]=0
     rendered,refine_stats,residuals=refine_document(document,expected,flat,importance,seg.labels,locked,config,paths)
     stamp('render_refinement')
+    if config.preset == 'poster':
+        base_shapes = [shape for shape in document.shapes if shape.kind == 'base']
+        if len({shape.fill[:3] for shape in base_shapes}) > 1:
+            for shape in document.shapes:
+                if not shape.locked and shape.fill[3] == 255:
+                    shape.fill = (*poster_contrast(shape.fill[:3]), shape.fill[3])
+            if dominant is not None:
+                geometry_metrics['opaque_backdrop'] = '#'+''.join(f'{v:02x}' for v in dominant.fill[:3])
+            rendered = render_svg(document.svg().encode())
+            base_render = (render_svg(replace(document, shapes=base_shapes, clips={}).svg().encode())
+                           if refine_stats['accepted_patches'] else rendered)
     document.write(dest)
     stats=document.stats()
     if config.target_shapes and stats['shape_count']>config.target_shapes:

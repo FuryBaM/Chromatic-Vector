@@ -9,7 +9,7 @@ PRESETS = {
                   residual_threshold=.15, max_shape_levels=3, primitive_fit='auto', refine_passes=1),
     'detail': dict(base_colors=16, target_shapes=250, detail_budget=100, boundary_preservation=.90,
                    residual_threshold=.08, max_shape_levels=3, primitive_fit='auto', refine_passes=2),
-    'poster': dict(base_colors=10, target_shapes=120, detail_budget=36, boundary_preservation=.68,
+    'poster': dict(base_colors=14, target_shapes=165, detail_budget=44, boundary_preservation=.78,
                    residual_threshold=.095, max_shape_levels=3, primitive_fit='auto', refine_passes=2),
 }
 

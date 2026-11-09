@@ -59,6 +59,9 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
         proposal_rgb = flat.copy()
         proposal_rgb[opaque] = source[..., :3][opaque]
     ids=quantize(proposal_rgb,colors,config.seed)
+    nbase=int(labels.max())+1
+    owners = labels
+    owner_count = nbase
     if poster:
         gray = cv2.cvtColor(proposal_rgb, cv2.COLOR_RGB2GRAY)
         radius = min(7, max(2, round(min(gray.shape) / 95)))
@@ -72,8 +75,22 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
         eligible = opaque & ~locked
         ids[eligible & (dark >= 17) & (difference <= -18)] = colors
         ids[eligible & (light >= 17) & (difference >= 18)] = colors + 1
-    nbase=int(labels.max())+1
-    combos=ids.astype(np.int64)*nbase+labels
+        foreground = np.zeros(nbase, dtype=bool)
+        for rid, shape in base_by_region.items():
+            foreground[rid] = shape.layer != 'background' and not shape.locked
+        owners = labels.copy()
+        foreground_pixels = eligible & foreground[labels]
+        bridge_kernel = np.ones((3, 3), np.uint8)
+        for accent_id, response, signed_error in ((colors, dark, -difference), (colors + 1, light, difference)):
+            seeds = (ids == accent_id) & foreground_pixels
+            closed = cv2.morphologyEx(seeds.astype(np.uint8), cv2.MORPH_CLOSE, bridge_kernel).astype(bool)
+            # Reconnect small gaps across shading planes only where the raster supports the accent.
+            support = foreground_pixels & (response >= 10) & (signed_error >= -3) & (ids < colors)
+            accents = seeds | (closed & support)
+            owners[accents] = nbase
+            ids[accents] = accent_id
+        owner_count += 1
+    combos=ids.astype(np.int64)*owner_count+owners
     _,dense=np.unique(combos,return_inverse=True)
     fine=connected_regions(dense.reshape(labels.shape).astype(np.int32),source[...,:3])
     slices=__import__('scipy').ndimage.find_objects(fine.labels+1)
@@ -108,14 +125,14 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
             mask=(fine.labels[sl]==rid)&~locked[sl]&(source[sl][...,3]==255)
             ys,xs=np.nonzero(mask)
             if len(xs)<min_area: continue
-            parent_id=int(labels[y0+ys[0],x0+xs[0]])
+            regions, counts = np.unique(labels[sl][mask], return_counts=True)
+            parent_id = int(regions[counts.argmax()])
             parent=base_by_region.get(parent_id)
             if parent is None or parent.locked: continue
-            # All proposal pixels belong to one base region by construction.
             pixels = source[sl][...,:3][mask]
             weights = None
             if poster and ids[y0+ys[0], x0+xs[0]] >= colors:
-                weights = contrast[sl][mask]
+                weights = contrast[sl][mask].astype(float) ** 2
             color=tuple(map(int,np.rint(np.average(pixels, axis=0, weights=weights))))
             delta = np.subtract(color, parent.fill[:3])
             if poster and np.linalg.norm(delta) < (24 if parent.layer == 'background' else 12):
@@ -123,13 +140,18 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
             d=mask_path(mask,x0,y0,method='bounded' if config.contour_method=='neural' else config.contour_method,
                         poster=poster)
             if not d: continue
-            document.clips.setdefault(parent.uid,' '.join(base_paths[parent_id]))
+            clip_uid = parent.uid
+            if len(regions) > 1:
+                clip_uid = f'accent-{rid}'
+                document.clips[clip_uid] = ' '.join(path for region in regions for path in base_paths[region])
+            else:
+                document.clips.setdefault(clip_uid,' '.join(base_paths[parent_id]))
             level=('primary','secondary','detail')[config.max_shape_levels-1]
             layer='highlights' if np.dot(delta,(.2126,.7152,.0722))>10 else 'shadows'
-            shape=VectorShape(f'patch-{pass_index}-{rid}',[parent_id],level,layer,(*color,255),
+            shape=VectorShape(f'patch-{pass_index}-{rid}',regions.tolist(),level,layer,(*color,255),
                               'fill-rule="evenodd" d="'+escape(d,quote=True)+'"','path',
                               (x0,y0,x1,y1),len(xs),composition_parent_uid=parent.uid,
-                              draw_order=len(document.shapes),clipped_by_uid=parent.uid,
+                              draw_order=len(document.shapes),clipped_by_uid=clip_uid,
                               score=float(error[sl][mask].mean()),kind='overlay')
             bounds=(max(0,x0-4),max(0,y0-4),min(document.width,x1+4),min(document.height,y1+4))
             bx,by,ex,ey=bounds; roi=np.s_[by:ey,bx:ex]

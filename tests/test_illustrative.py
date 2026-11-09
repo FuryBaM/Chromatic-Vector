@@ -44,11 +44,11 @@ def test_poster_simplifies_reference_and_keeps_major_edges(tmp_path):
     report = tmp_path / 'poster.json'
     stats = vectorize(source, svg, mode='illustrative', preset='poster',
                       max_side=0, debug_dir=debug, shape_report=report)
-    assert stats['config']['target_shapes'] == 120
+    assert stats['config']['target_shapes'] == 165
     assert stats['config']['max_error'] == 1.7
-    assert stats['shape_count'] < 160
+    assert stats['shape_count'] < 225
     assert 24 <= stats['accepted_patches'] <= stats['config']['detail_budget']
-    assert stats['metrics_after']['edge_f1']['1'] > .75
+    assert stats['metrics_after']['edge_f1']['1'] > .80
     assert stats['metrics_after']['alpha_mae'] == 0
     mouth = np.s_[89:97, 153:164, :3]
     expected = np.asarray(Image.open(source).convert('RGBA'), dtype=float)[mouth]
@@ -58,12 +58,21 @@ def test_poster_simplifies_reference_and_keeps_major_edges(tmp_path):
     data = json.loads(report.read_text(encoding='utf-8'))
     assert sum(len(chain['cubics']) for chain in data['boundaries']) < 1050
     shapes = {shape['uid']: shape for shape in data['shapes']}
+    base_regions = {shape['source_region_ids'][0]: shape for shape in shapes.values() if shape['kind'] == 'base'}
+    spanning = [shape for shape in shapes.values() if shape['kind'] == 'overlay' and len(shape['source_region_ids']) > 1]
+    assert {shape['layer'] for shape in spanning} == {'highlights', 'shadows'}
+    svg_tree = ET.parse(svg)
+    clips = {clip.get('id') for clip in svg_tree.findall('.//{http://www.w3.org/2000/svg}clipPath')}
+    for shape in spanning:
+        assert f"clip-{shape['clipped_by_uid']}" in clips
+        assert all(base_regions[rid]['layer'] != 'background' and not base_regions[rid]['locked']
+                   for rid in shape['source_region_ids'])
     for shape in shapes.values():
         if shape['kind'] == 'overlay':
             parent = shapes[shape['composition_parent_uid']]
             assert np.linalg.norm(np.subtract(shape['fill'][:3], parent['fill'][:3])) >= 12
     assert '<image' not in svg.read_text(encoding='utf-8')
-    export = ET.parse(svg).findall('.//*[@data-shape-id]')
+    export = svg_tree.findall('.//*[@data-shape-id]')
     contours = ET.parse(debug / 'vector_contours.svg').findall('.//*[@data-shape-id]')
     assert len(contours) == len(export)
     for shape, outlined in zip(export, contours):
@@ -111,12 +120,13 @@ def test_flatten_source_immutable_and_thin_edges():
     assert importance[:,23:27].max()>.8
 
 
-def test_hard_boundary_and_manual_locks(tmp_path):
+@pytest.mark.parametrize('preset', ['detail', 'poster'])
+def test_hard_boundary_and_manual_locks(tmp_path, preset):
     rgba=np.full((30,35,4),(90,100,110,255),np.uint8)
     rgba[:,17:,:3]=235
     mask=np.zeros_like(rgba);mask[7:13,4:10]=(240,10,20,255)
     cp=tmp_path/'correction.png';Image.fromarray(mask).save(cp)
-    _,r,out,_=run(tmp_path,rgba,correction_mask=cp,base_colors=2,refine_passes=2)
+    _,r,out,_=run(tmp_path,rgba,correction_mask=cp,base_colors=2,refine_passes=2,preset=preset)
     np.testing.assert_array_equal(out[9,6,:3],(240,10,20))
     assert r['corrected_pixels']==36 and any(s['locked'] for s in r['shapes'])
     assert out[:,18:,:3].mean()>220
