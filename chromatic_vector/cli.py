@@ -9,7 +9,7 @@ from .palette import segment
 from .corrections import apply_color_overlay
 from .contours import extract_edges, trace_rings
 from .native import extract_native_edges
-from .modes import PRESETS, IllustrativeConfig
+from .modes import POSTER_GEOMETRY, PRESETS, IllustrativeConfig
 from .svg import write_svg
 from .shared import SharedBoundaryGeometry
 from .shape_graph import build_document, layer_geometry_styles
@@ -20,10 +20,10 @@ import json
 
 
 def vectorize(source: str | Path, dest: str | Path, colors=18, min_area=6,
-              max_side=1100, simplify=0.8, smooth=0.7, transparent_background=False,
+              max_side=1100, simplify=None, smooth=None, transparent_background=False,
               seed=23, debug_dir: str | Path | None = None, backend: str = "auto",
               geometry: str = "shared", simplifier: str = "game",
-              refine: int = 0, max_error: float = 0.0,
+              refine: int = 0, max_error: float | None = None,
               correction_mask: str | Path | None = None,
               export_mode: str = "shapes", merge_tolerance: float = 10.0,
               merge_max_area: int = 48, adaptive_layers: bool = True,
@@ -39,7 +39,12 @@ def vectorize(source: str | Path, dest: str | Path, colors=18, min_area=6,
         raise ValueError('Neural options require --mode illustrative --contour-method neural')
     if mode not in ('precise', 'illustrative'):
         raise ValueError('--mode must be precise or illustrative')
-    if target_shapes is None and not (mode == 'illustrative' and preset == 'poster'):
+    poster = mode == 'illustrative' and preset == 'poster'
+    geometry_defaults = POSTER_GEOMETRY if poster else dict(simplify=.8, smooth=.7, max_error=0.)
+    simplify = geometry_defaults['simplify'] if simplify is None else simplify
+    smooth = geometry_defaults['smooth'] if smooth is None else smooth
+    max_error = geometry_defaults['max_error'] if max_error is None else max_error
+    if target_shapes is None and not poster:
         target_shapes = 0
     if mode == 'illustrative':
         from .pipeline import vectorize_illustrative
@@ -258,6 +263,8 @@ def main():
     defaults=presets[args.quality].copy()
     if args.mode=='illustrative':
         defaults.update(max_side=0,simplify=1.1,smooth=.9,max_error=1.1)
+        if args.preset == 'poster':
+            defaults.update(POSTER_GEOMETRY)
     for key, default in defaults.items():
         if getattr(args, key) is None:
             setattr(args, key, default)

@@ -9,7 +9,7 @@ from .hierarchy import VectorShape
 from .metrics import render_svg, residual, objective
 
 
-def mask_path(mask, x=0, y=0, method="bounded"):
+def mask_path(mask, x=0, y=0, method="bounded", *, poster=False):
     edges=extract_edges(mask.astype(np.int32))
     rings=trace_rings(edges)
     if 1 not in rings: return ''
@@ -19,7 +19,9 @@ def mask_path(mask, x=0, y=0, method="bounded"):
     if x or y:
         edges=edges.copy();edges[:,(1,3)]+=x;edges[:,(2,4)]+=y
         rings=trace_rings(edges)
-    graph,_=safe_shared(edges,simplify=.8,smooth=.7,max_error=.8,method=method)
+    settings = dict(simplify=1., smooth=.85, max_error=1.05) if poster and method=='bounded' else dict(
+        simplify=.8, smooth=.7, max_error=.8)
+    graph,_=safe_shared(edges,method=method,poster=poster,**settings)
     return ' '.join(graph.paths(rings)[1])
 
 
@@ -78,11 +80,15 @@ def refine_document(document, source, flat, importance, labels, locked, config, 
             if parent is None or parent.locked: continue
             # All proposal pixels belong to one base region by construction.
             color=tuple(map(int,np.rint(source[sl][...,:3][mask].mean(axis=0))))
-            d=mask_path(mask,x0,y0,method='bounded' if config.contour_method=='neural' else config.contour_method)
+            delta = np.subtract(color, parent.fill[:3])
+            if poster and np.linalg.norm(delta) < (24 if parent.layer == 'background' else 12):
+                continue
+            d=mask_path(mask,x0,y0,method='bounded' if config.contour_method=='neural' else config.contour_method,
+                        poster=poster)
             if not d: continue
             document.clips.setdefault(parent.uid,' '.join(base_paths[parent_id]))
             level=('primary','secondary','detail')[config.max_shape_levels-1]
-            layer='highlights' if np.dot(np.array(color)-np.array(parent.fill[:3]),(.2126,.7152,.0722))>10 else 'shadows'
+            layer='highlights' if np.dot(delta,(.2126,.7152,.0722))>10 else 'shadows'
             shape=VectorShape(f'patch-{pass_index}-{rid}',[parent_id],level,layer,(*color,255),
                               'fill-rule="evenodd" d="'+escape(d,quote=True)+'"','path',
                               (x0,y0,x1,y1),len(xs),composition_parent_uid=parent.uid,

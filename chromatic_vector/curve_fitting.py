@@ -133,15 +133,8 @@ def _fit_span(points, start_tangent, end_tangent):
     return (a, a + weights[0]*start_tangent, b - weights[1]*end_tangent, b), split, errors[split]
 
 
-def fit_poster_curve(raw, simplify, smooth, max_error):
-    """Fit long spans to the edge trend, with corners and junctions pinned."""
-    raw = np.asarray(raw, float)
+def _poster_spans(raw, smooth, tolerance):
     closed = np.array_equal(raw[0], raw[-1])
-    short_axis = min(np.ptp(raw, axis=0))
-    thin = short_axis == 0 or (closed and short_axis <= 1)
-    if len(raw) < 8 or thin or not (simplify and smooth and max_error):
-        return fit_shared_curve(raw, simplify, smooth, max_error)
-
     core = raw[:-1] if closed else raw
     filtered = gaussian_filter1d(core, sigma=2., axis=0, mode='wrap' if closed else 'nearest')
     points = core + (filtered - core)*smooth
@@ -167,7 +160,6 @@ def fit_poster_curve(raw, simplify, smooth, max_error):
     if closed:
         tangents = np.vstack((tangents, tangents[0]))
 
-    tolerance = min(simplify, max_error) * .58
     ordered = sorted(pins)
     pending = list(reversed(list(zip(ordered, ordered[1:]))))
     curves = []
@@ -191,6 +183,24 @@ def fit_poster_curve(raw, simplify, smooth, max_error):
             pending.extend(((mid, end), (start, mid)))
         else:
             curves.append(curve)
-    if _within_error(raw, cKDTree(raw), curves, max_error):
-        return curves, 0
+    return curves
+
+
+def fit_poster_curve(raw, simplify, smooth, max_error):
+    """Fit long spans to the edge trend, with corners and junctions pinned."""
+    raw = np.asarray(raw, float)
+    closed = np.array_equal(raw[0], raw[-1])
+    short_axis = min(np.ptp(raw, axis=0))
+    thin = short_axis == 0 or (closed and short_axis <= 1)
+    if len(raw) < 8 or thin or not (simplify and smooth and max_error):
+        return fit_shared_curve(raw, simplify, smooth, max_error)
+
+    source_tree = cKDTree(raw)
+    tolerance = min(simplify, max_error)
+    # A gentler fit keeps smooth spans even if the first pass moves a tight bend too far.
+    settings = ((smooth, tolerance*.58), (smooth*.72, tolerance*.43))
+    for attempt, (strength, error) in enumerate(settings):
+        curves = _poster_spans(raw, strength, error)
+        if _within_error(raw, source_tree, curves, max_error):
+            return curves, attempt
     return fit_shared_curve(raw, simplify, smooth, max_error)

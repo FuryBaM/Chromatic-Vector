@@ -41,13 +41,22 @@ def test_poster_simplifies_reference_and_keeps_major_edges(tmp_path):
     source = Path(__file__).resolve().parents[1] / 'references' / 'head_shoulder_crop.png'
     svg = tmp_path / 'poster.svg'
     debug = tmp_path / 'debug'
+    report = tmp_path / 'poster.json'
     stats = vectorize(source, svg, mode='illustrative', preset='poster',
-                      max_side=0, simplify=1.1, smooth=.9, max_error=1.1, debug_dir=debug)
+                      max_side=0, debug_dir=debug, shape_report=report)
     assert stats['config']['target_shapes'] == 120
+    assert stats['config']['max_error'] == 1.7
     assert stats['shape_count'] < 160
     assert stats['accepted_patches'] <= stats['config']['detail_budget']
     assert stats['metrics_after']['edge_f1']['1'] > .75
     assert stats['metrics_after']['alpha_mae'] == 0
+    data = json.loads(report.read_text(encoding='utf-8'))
+    assert sum(len(chain['cubics']) for chain in data['boundaries']) < 1050
+    shapes = {shape['uid']: shape for shape in data['shapes']}
+    for shape in shapes.values():
+        if shape['kind'] == 'overlay':
+            parent = shapes[shape['composition_parent_uid']]
+            assert np.linalg.norm(np.subtract(shape['fill'][:3], parent['fill'][:3])) >= 12
     assert '<image' not in svg.read_text(encoding='utf-8')
     export = ET.parse(svg).findall('.//*[@data-shape-id]')
     contours = ET.parse(debug / 'vector_contours.svg').findall('.//*[@data-shape-id]')

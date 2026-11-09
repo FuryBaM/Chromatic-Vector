@@ -2,6 +2,8 @@
 from dataclasses import asdict, dataclass
 import math
 
+POSTER_GEOMETRY = dict(simplify=1.65, smooth=.95, max_error=1.7)
+
 PRESETS = {
     'draft': dict(base_colors=10, target_shapes=140, detail_budget=35, boundary_preservation=.82,
                   residual_threshold=.15, max_shape_levels=3, primitive_fit='auto', refine_passes=1),

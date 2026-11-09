@@ -63,7 +63,8 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
                         local_eps, local_smooth = styles[region]
                         eps, tension = min(eps, local_eps), min(tension, local_smooth)
                 raw=np.asarray(chain.vertices,float)
-                chain.cubics=fit_shared_curve(raw,eps*.5,tension*.5,max_error)[0]
+                retry = fitter if poster and method=='bounded' else fit_shared_curve
+                chain.cubics=retry(raw,eps*.5,tension*.5,max_error)[0]
                 reduced_fit.add(i)
             elif i not in lattice_fallback:
                 chain.cubics=fit_shared_curve(np.asarray(chain.vertices,float),0,0,0)[0]

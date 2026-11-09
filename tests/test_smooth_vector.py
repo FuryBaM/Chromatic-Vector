@@ -8,7 +8,7 @@ from scipy.spatial import cKDTree
 from chromatic_vector.cli import vectorize
 from chromatic_vector.contours import extract_edges
 from chromatic_vector.geometry import safe_shared
-from chromatic_vector.curve_fitting import fit_shared_curve, sample_curves
+from chromatic_vector.curve_fitting import fit_poster_curve, fit_shared_curve, sample_curves
 
 
 def test_long_straight_edge_is_not_rejected_by_sampling_cap():
@@ -49,6 +49,19 @@ def test_poster_ellipse_uses_long_spans_with_aligned_tangents():
     points = sample_curves(chain.cubics)
     radius = np.sqrt(((points[:, 0]-47)/29)**2 + ((points[:, 1]-42)/26)**2)
     assert np.max(np.abs(radius-1)) < .035
+
+
+def test_poster_retries_a_tight_bend_without_restoring_the_staircase():
+    # A raster scarf edge has two long diagonals and a tight return in between.
+    steps = 'UUURURURRURURRRDRRRRRRRRRULLLLLLUURURRURUUUR'
+    directions = {'U': (0, -1), 'D': (0, 1), 'L': (-1, 0), 'R': (1, 0)}
+    raw = np.cumsum([(0, 0), *(directions[step] for step in steps)], axis=0)
+    curves, attempt = fit_poster_curve(raw, 1.1, .9, 1.1)
+    assert attempt == 1
+    assert len(curves) <= 10
+    samples = sample_curves(curves)
+    np.testing.assert_array_equal(samples[[0, -1]], raw[[0, -1]])
+    assert cKDTree(samples).query(raw)[0].max() <= 1.1
 
 
 def test_neural_self_intersection_recovers_smooth_bounded_contour(monkeypatch):
