@@ -35,7 +35,9 @@ def vectorize(source: str | Path, dest: str | Path, colors=18, min_area=6,
               max_shape_levels: int | None = None, primitive_fit: str | None = None,
               refine_passes: int | None = None, contour_method: str = "bounded",
               neural_model: str | Path | None = None, neural_optimize_steps: int = 5, neural_merge: bool = False,
-              supersample: int = 0):
+              supersample: int = 0, stacked: bool = False):
+    if stacked and (mode != 'illustrative' or preset != 'poster'):
+        raise ValueError('--stacked requires --mode illustrative --preset poster')
     if (neural_model is not None or neural_merge) and (mode!='illustrative' or contour_method!='neural'):
         raise ValueError('Neural options require --mode illustrative --contour-method neural')
     if mode not in ('precise', 'illustrative'):
@@ -54,7 +56,7 @@ def vectorize(source: str | Path, dest: str | Path, colors=18, min_area=6,
             boundary_preservation=boundary_preservation, residual_threshold=residual_threshold,
             max_shape_levels=max_shape_levels, primitive_fit=primitive_fit,
             refine_passes=refine_passes, seed=seed, contour_method=contour_method, neural_model=str(neural_model) if neural_model else None,
-            neural_optimize_steps=neural_optimize_steps,neural_merge=neural_merge,supersample=supersample)
+            neural_optimize_steps=neural_optimize_steps,neural_merge=neural_merge,supersample=supersample,stacked=stacked)
         if geometry != 'shared' or export_mode != 'shapes':
             raise ValueError('Illustrative mode requires --geometry shared and --export-mode shapes')
         return vectorize_illustrative(source, dest, config=config, backend=backend,
@@ -204,6 +206,7 @@ def main():
     p.add_argument('--neural-merge',action='store_true')
     p.add_argument('--supersample',type=int,default=0,
                    help='Illustrative working scale 1..4; 0 picks it automatically for small opaque poster sources')
+    p.add_argument('--stacked', action='store_true', help='Simplify covered recesses in opaque poster planes')
     p.add_argument("--quality", choices=("balanced", "precise"), default="balanced",
                    help="Preset; explicit flags override its choices")
     p.add_argument("--colors", type=int, default=None, help="Palette size (2..256)")
@@ -241,6 +244,8 @@ def main():
     p.add_argument("--correction-mask", type=Path,
                    help="Optional same-size transparent RGBA PNG: opaque painted pixels replace local colors")
     args = p.parse_args()
+    if args.stacked and (args.mode != 'illustrative' or args.preset != 'poster'):
+        p.error('--stacked requires --mode illustrative --preset poster')
     if (args.neural_model is not None or args.neural_merge) and (args.mode!='illustrative' or args.contour_method!='neural'):
         p.error('Neural options require --mode illustrative --contour-method neural')
     if args.mode!='illustrative' and args.contour_method!='bounded':
@@ -291,7 +296,7 @@ def main():
                       residual_threshold=args.residual_threshold, max_shape_levels=args.max_shape_levels,
                       primitive_fit=args.primitive_fit, refine_passes=args.refine_passes, contour_method=args.contour_method,neural_model=args.neural_model,
                       neural_optimize_steps=args.neural_optimize_steps,neural_merge=args.neural_merge,
-                      supersample=args.supersample)
+                      supersample=args.supersample,stacked=args.stacked)
     print("Chromatic Vector:", stats)
     print("SVG:", args.output.resolve())
 

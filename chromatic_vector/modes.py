@@ -30,6 +30,7 @@ class IllustrativeConfig:
     neural_optimize_steps: int = 5
     neural_merge: bool = False
     supersample: int = 0
+    stacked: bool = False
 
     def __post_init__(self):
         from .unipolar import METHODS
@@ -38,6 +39,7 @@ class IllustrativeConfig:
         if self.supersample not in range(5):raise ValueError('--supersample must be 0 (automatic) or 1..4')
         if self.supersample>1 and self.preset!='poster':raise ValueError('--supersample above 1 requires --preset poster')
         if self.supersample>1 and self.contour_method=='neural':raise ValueError('--supersample above 1 is not available with --contour-method neural')
+        if self.stacked and self.preset != 'poster':raise ValueError('--stacked requires --preset poster')
         if self.neural_merge and self.contour_method!='neural':raise ValueError('--neural-merge requires --contour-method neural')
         if self.preset not in PRESETS:
             raise ValueError('--preset must be one of: '+', '.join(PRESETS))

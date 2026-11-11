@@ -19,9 +19,30 @@ from chromatic_vector.hierarchy import VectorDocument, VectorShape, layer_and_co
 from chromatic_vector.metrics import render_svg
 from chromatic_vector.modes import IllustrativeConfig
 from chromatic_vector.palette import connected_regions
+from chromatic_vector.stacking import stack_poster, straighten_recesses
 
 REFERENCE = Path(__file__).resolve().parents[1] / 'references' / 'head_shoulder_crop.png'
 SVG = '{http://www.w3.org/2000/svg}'
+
+
+def test_stacked_poster_shortcuts_only_a_covered_recess():
+    path = 'M 0 0 L 8 0 L 8 4 L 12 4 L 12 0 L 20 0 L 20 20 L 0 20 Z'
+    simpler, removed = straighten_recesses(path, 1)
+    assert removed == 4 and 'L 20 0' in simpler
+    lower = VectorShape('lower', [0], 'primary', 'base_planes', (35, 40, 45, 255),
+                        f'fill-rule="evenodd" d="{path}"', 'path', (0, 0, 20, 20), 384)
+    upper = VectorShape('upper', [1], 'detail', 'details', (220, 170, 65, 255),
+                        'x="8" y="0" width="4" height="4"', 'rect', (8, 0, 12, 4), 16, draw_order=1)
+    labels = np.zeros((20, 20), np.int32)
+    labels[:4, 8:12] = 1
+    doc = VectorDocument(20, 20, [lower, upper], [], {})
+    before = render_svg(doc.svg().encode())
+    stacked, saved, after = stack_poster(doc, labels, scale=1, max_error=1, working_baseline=before)
+    assert saved == removed
+    np.testing.assert_array_equal(after, before)
+    np.testing.assert_array_equal(render_svg(stacked.svg().encode()), before)
+    uncovered = VectorDocument(20, 20, [lower], [], {})
+    assert stack_poster(uncovered, labels, 1, 1, render_svg(uncovered.svg().encode()))[1] == 0
 
 
 def test_layer_compaction_combines_disjoint_fills_and_preserves_paint_order():

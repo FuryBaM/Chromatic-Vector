@@ -244,6 +244,11 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
                 document = candidate
                 break
         stamp('export_compaction')
+    if config.stacked and geometry_metrics['seam_underpaint'] and not locked.any():
+        from .stacking import stack_poster
+        document, saved, rendered = stack_poster(document, seg.labels, scale, max_error, rendered)
+        geometry_metrics['stacked_segments_removed'] = saved
+        stamp('stacked_export')
     document.write(dest)
     stats=document.stats()
     if config.target_shapes and stats['shape_count']>config.target_shapes:
