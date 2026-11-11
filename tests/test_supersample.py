@@ -15,12 +15,36 @@ from chromatic_vector.curve_fitting import fit_ink_curve, sample_curves
 from chromatic_vector.enhance import (auto_supersample, coherence_shock, lift_blacks, restore_blacks,
                                       supersample)
 from chromatic_vector.flatten import importance_map
+from chromatic_vector.hierarchy import VectorDocument, VectorShape, layer_and_compact
 from chromatic_vector.metrics import render_svg
 from chromatic_vector.modes import IllustrativeConfig
 from chromatic_vector.palette import connected_regions
 
 REFERENCE = Path(__file__).resolve().parents[1] / 'references' / 'head_shoulder_crop.png'
 SVG = '{http://www.w3.org/2000/svg}'
+
+
+def test_layer_compaction_combines_disjoint_fills_and_preserves_paint_order():
+    shapes = []
+    for index, (bounds, layer, rgb) in enumerate([
+            ((0, 0, 80, 40), 'background', (15, 16, 18)),
+            ((5, 5, 20, 20), 'details', (221, 178, 76)),
+            ((13, 13, 29, 26), 'shadows', (82, 109, 167)),
+            ((53, 6, 70, 20), 'accents', (221, 178, 76))]):
+        x0, y0, x1, y1 = bounds
+        vertices = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+        path = ' L '.join(f'{x} {y}' for x, y in vertices)
+        shapes.append(VectorShape(f'shape-{index}', [index], 'detail', layer, (*rgb, 255),
+                                  f'fill-rule="evenodd" d="M {path} Z"', 'path', bounds,
+                                  (x1-x0)*(y1-y0), draw_order=index))
+    doc = VectorDocument(80, 40, shapes, [], {'seam_underpaint': True}, display_size=(20, 10))
+    packed = layer_and_compact(doc, padding=2)
+    assert len(packed.shapes) == 3
+    assert packed.shapes[0].layer == 'background'
+    assert set(packed.shapes[1].source_region_ids) == {1, 3}
+    for display in (False, True):
+        np.testing.assert_array_equal(render_svg(packed.svg(display=display).encode()),
+                                      render_svg(doc.svg(display=display).encode()))
 
 
 def lattice_chain(polygon):

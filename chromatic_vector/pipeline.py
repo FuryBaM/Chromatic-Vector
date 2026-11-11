@@ -20,7 +20,7 @@ from .native import extract_native_edges
 from .shape_graph import build_document
 from .geometry import safe_shared
 from .shape_fitter import ellipse_fit, ellipse_attributes, ellipse_path, linear_primitive
-from .hierarchy import VectorDocument, VectorShape, classify, containment_parents
+from .hierarchy import VectorDocument, VectorShape, classify, containment_parents, layer_and_compact
 from .metrics import render_svg, quality_metrics, residual
 from .refinement import refine_document
 
@@ -230,6 +230,20 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
             rendered = render_svg(document.svg().encode())
             base_render = (render_svg(replace(document, shapes=base_shapes, clips={}).svg().encode())
                            if refine_stats['accepted_patches'] else rendered)
+    if config.preset == 'poster' and scale > 1:
+        original_svg = document.svg(display=True).encode()
+        original_display = render_svg(original_svg)
+        packed = layer_and_compact(document, padding=max_error+2*scale)
+        for candidate in (packed, replace(document, compact=True)):
+            candidate_svg = candidate.svg(display=True).encode()
+            if (len(candidate_svg) < len(original_svg)
+                    and np.array_equal(render_svg(candidate_svg), original_display)
+                    and np.array_equal(render_svg(candidate.svg().encode()), rendered)):
+                geometry_metrics['export_compaction'] = dict(shapes_before=len(document.shapes),
+                                                              bytes_before=len(original_svg))
+                document = candidate
+                break
+        stamp('export_compaction')
     document.write(dest)
     stats=document.stats()
     if config.target_shapes and stats['shape_count']>config.target_shapes:
@@ -252,7 +266,10 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
                 width=document.width,height=document.height,supersample=scale,display_dimensions=list(display_size),backend=actual_backend,native_backend_version=2 if actual_backend=='native' else None,
                 **stats,**correction_stats,stages_timing=timings,seconds=time.monotonic()-started,
                 peak_memory_mb=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024,
-                svg_bytes=Path(dest).stat().st_size,cubic_segments=Path(dest).read_text().count('C '),merge=merge_stats,boundary_protected_count=sum(b['protected'] for b in boundaries),
+                svg_bytes=Path(dest).stat().st_size,
+                cubic_segments=sum(shape.geometry.count('C ') for shape in document.shapes)
+                               + sum(path.count('C ') for path in document.clips.values()),
+                merge=merge_stats,boundary_protected_count=sum(b['protected'] for b in boundaries),
                 residual_proposals=refine_stats['proposals'],accepted_patches=refine_stats['accepted_patches'],rejected_patches=refine_stats['rejected_patches'],
                 refinement=refine_stats,metrics_before=before,metrics_after=after,geometry=geometry_metrics,
                 fallback_count=geometry_metrics['intersection_fallbacks']+geometry_metrics['guard_fallbacks'],
