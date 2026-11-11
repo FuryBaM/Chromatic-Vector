@@ -224,6 +224,7 @@ def fit_poster_curve(raw, simplify, smooth, max_error):
 
 # Supersampled ink fit.
 INK_EPSILON = .45   # polygon tolerance as a share of the geometric tolerance
+INK_SMOOTH = 2.     # contour smoothing before the polygon, in detail pixels
 INK_CORNER = .4     # a turn is a corner when its runs bow less than this share of an even arc
 INK_BEVEL = 6.      # longest bevel, in detail pixels, that is rebuilt into a single apex
 INK_CUT = .3        # deepest cut below the apex, as a share of that bevel length
@@ -415,7 +416,7 @@ def fit_ink_curve(raw, simplify, smooth, max_error, scale=1.):
         return fit_shared_curve(raw, simplify, smooth, max_error)
     core = raw[:-1] if closed else raw
     # Remove only the lattice staircase; the polygon decides what else is noise.
-    filtered = gaussian_filter1d(core, sigma=1.5, axis=0, mode='wrap' if closed else 'nearest')
+    filtered = gaussian_filter1d(core, sigma=INK_SMOOTH*scale, axis=0, mode='wrap' if closed else 'nearest')
     points = core + (filtered - core)*smooth
     if not closed:
         points[0], points[-1] = raw[0], raw[-1]
