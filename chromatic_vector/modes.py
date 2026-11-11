@@ -9,7 +9,7 @@ PRESETS = {
                   residual_threshold=.15, max_shape_levels=3, primitive_fit='auto', refine_passes=1),
     'detail': dict(base_colors=16, target_shapes=250, detail_budget=100, boundary_preservation=.90,
                    residual_threshold=.08, max_shape_levels=3, primitive_fit='auto', refine_passes=2),
-    'poster': dict(base_colors=14, target_shapes=165, detail_budget=44, boundary_preservation=.78,
+    'poster': dict(base_colors=14, target_shapes=560, detail_budget=44, boundary_preservation=.78,
                    residual_threshold=.095, max_shape_levels=3, primitive_fit='auto', refine_passes=2),
 }
 
@@ -29,11 +29,15 @@ class IllustrativeConfig:
     neural_model: str | None = None
     neural_optimize_steps: int = 5
     neural_merge: bool = False
+    supersample: int = 0
 
     def __post_init__(self):
         from .unipolar import METHODS
         if self.contour_method not in (*METHODS,'neural'):raise ValueError('--contour-method must be '+', '.join((*METHODS,'neural')))
         if not 0<=self.neural_optimize_steps<=20:raise ValueError('--neural-optimize-steps must be 0..20')
+        if self.supersample not in range(5):raise ValueError('--supersample must be 0 (automatic) or 1..4')
+        if self.supersample>1 and self.preset!='poster':raise ValueError('--supersample above 1 requires --preset poster')
+        if self.supersample>1 and self.contour_method=='neural':raise ValueError('--supersample above 1 is not available with --contour-method neural')
         if self.neural_merge and self.contour_method!='neural':raise ValueError('--neural-merge requires --contour-method neural')
         if self.preset not in PRESETS:
             raise ValueError('--preset must be one of: '+', '.join(PRESETS))

@@ -94,8 +94,9 @@ def main():
         canvas.paste(high.resize((352, 240)), (0, row*260+20))
         for col, (method, options) in enumerate(modes, 1):
             svg = args.output / f'{name}-{method}.svg'
+            # Compare contour fitters on the source lattice the learned model was trained for.
             stats = vectorize(source, svg, mode='illustrative', preset='poster', base_colors=4,
-                              target_shapes=0, detail_budget=0, max_side=0, **options)
+                              target_shapes=0, detail_budget=0, max_side=0, supersample=1, **options)
             rendered = render_svg(svg)
             signature = topology(rendered)
             geometry = stats['geometry']

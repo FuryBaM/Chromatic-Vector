@@ -12,6 +12,7 @@ from PIL import Image
 from .modes import IllustrativeConfig
 from . import __version__
 from .flatten import flatten_rgba, pyramid
+from .enhance import auto_supersample, restore_blacks, supersample
 from .base_segmentation import propose, merge_planes
 from .palette import poster_contrast
 from .contours import extract_edges, trace_rings, signed_area
@@ -22,6 +23,10 @@ from .shape_fitter import ellipse_fit, ellipse_attributes, ellipse_path, linear_
 from .hierarchy import VectorDocument, VectorShape, classify, containment_parents
 from .metrics import render_svg, quality_metrics, residual
 from .refinement import refine_document
+
+
+# OKLab distance below which a seam between two supersampled planes is not worth keeping.
+FAINT_SEAM_CONTRAST = .04
 
 
 def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correction_mask=None,
@@ -39,9 +44,26 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
         now=time.monotonic();timings[name]=now-last_stamp;last_stamp=now
     image=Image.open(source).convert('RGBA');original_size=image.size
     if max_side and max(image.size)>max_side:
-        scale=max_side/max(image.size)
-        image=image.resize(tuple(max(1,round(v*scale)) for v in image.size),Image.Resampling.LANCZOS)
-    rgba=np.array(image);rgba.setflags(write=False)
+        shrink=max_side/max(image.size)
+        image=image.resize(tuple(max(1,round(v*shrink)) for v in image.size),Image.Resampling.LANCZOS)
+    source_rgba=np.array(image);source_rgba.setflags(write=False)
+    display_size=image.size
+    # Small opaque posters are traced on an enlarged, edge-restored copy of the source.
+    scale=config.supersample
+    opaque=bool(np.all(source_rgba[...,3]==255))
+    if scale==0:
+        # The learned contour model was trained on the source pixel lattice.
+        automatic=config.preset=='poster' and config.contour_method!='neural' and opaque and correction_mask is None
+        scale=auto_supersample(*display_size) if automatic else 1
+    elif scale>1 and not opaque:
+        warnings.append('Supersampling needs an opaque source; the original pixel grid was used.')
+        scale=1
+    if scale>1:
+        rgba=np.dstack((supersample(source_rgba[...,:3],scale),
+                        np.full((display_size[1]*scale,display_size[0]*scale),255,np.uint8)))
+        image=Image.fromarray(rgba)
+    else:rgba=source_rgba
+    rgba.setflags(write=False)
     reference=rgba.copy();alpha=rgba[...,3];locked=np.zeros(alpha.shape,bool)
     correction_stats=dict(corrected_pixels=0,correction_colors=0)
     if correction_mask is not None:
@@ -52,13 +74,17 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
         painted=np.array(painted);locked=(painted[...,3]>=128)&(alpha>0)
         reference[...,:3][locked]=painted[...,:3][locked]
         correction_stats=dict(corrected_pixels=int(locked.sum()),correction_colors=len(np.unique(painted[...,:3][locked],axis=0)))
-    flat,importance=flatten_rgba(reference,config.preset)
+    flat,importance=flatten_rgba(reference,config.preset,scale)
     flat[locked]=reference[...,:3][locked]
     stamp('flatten')
     seg=propose(flat,reference[...,:3],alpha,config,locked,reference[...,:3])
-    seg,merge_stats,rag=merge_planes(seg,reference[...,:3],importance,alpha,locked,config)
+    seg,merge_stats,rag=merge_planes(seg,reference[...,:3],importance,alpha,locked,config,
+                                     min_contrast=FAINT_SEAM_CONTRAST if scale>1 else 0.)
     stamp('segmentation_rag')
     if max_error==0:simplify=0.;smooth=0.
+    # Working pixels are finer than source pixels; keep the fit tolerance tied to the source.
+    geometry_scale=max(1.,scale/2)
+    simplify*=geometry_scale;max_error*=geometry_scale
     neural_model=None
     if config.contour_method=='neural':
         from .neural import BezierModel,NeuralContext
@@ -79,7 +105,8 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
              min(legacy.shapes[rid].bbox[2]-legacy.shapes[rid].bbox[0],legacy.shapes[rid].bbox[3]-legacy.shapes[rid].bbox[1])>=8))}
         context=NeuralContext(reference[...,:3],current.labels,current.region_colors,neural_model,config.neural_optimize_steps) if neural_model else None
         shared,metrics=safe_shared(edges,simplify,smooth,max_error,styles,method=config.contour_method,
-                                   neural_context=context,poster=config.preset=='poster')
+                                   neural_context=context,poster=config.preset=='poster',
+                                   poster_scale=geometry_scale)
         return edges,rings,legacy,region_alpha,region_lock,has_alpha,shared,metrics,context,actual
     geometry_state=construct(seg)
     neural_merge_stats=None
@@ -164,7 +191,9 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
         if rid in ellipse_fits: primitive='ellipse';geometry=ellipse_attributes(ellipse_fits[rid])
         else: primitive,geometry=linear_primitive(paths[rid],shape,config.primitive_fit)
         parent=parents.get(rid)
-        shapes.append(VectorShape(f'shape-{rid}',[rid],level,layer,(*shape.fill_rgb,int(region_alpha[rid])),geometry,
+        # Supersampled planes average a black-lifted source; export the true tone.
+        fill_rgb=restore_blacks(shape.fill_rgb) if scale>1 and not region_lock[rid] else shape.fill_rgb
+        shapes.append(VectorShape(f'shape-{rid}',[rid],level,layer,(*fill_rgb,int(region_alpha[rid])),geometry,
                                   primitive,shape.bbox,shape.pixel_area,
                                   containment_parent_uid=f'shape-{parent}' if parent is not None and parent not in skip else None,
                                   draw_order=len(shapes),score=shape.contrast/255,fit_metrics=ellipse_fits.get(rid,{}),
@@ -174,15 +203,23 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
     dominant = max(shapes, key=lambda shape: shape.area) if geometry_metrics['seam_underpaint'] and shapes else None
     if dominant is not None:
         geometry_metrics['opaque_backdrop']='#'+''.join(f'{v:02x}' for v in dominant.fill[:3])
-    document=VectorDocument(alpha.shape[1],alpha.shape[0],shapes,boundaries,geometry_metrics)
+    document=VectorDocument(alpha.shape[1],alpha.shape[0],shapes,boundaries,geometry_metrics,
+                            display_size=tuple(display_size) if scale>1 else None)
     stamp('geometry_hierarchy_fit')
-    base_render=render_svg(document.svg().encode())
     # Explicit background removal changes the comparison alpha target consistently.
     expected=reference.copy()
     for rid in skip: expected[...,3][seg.labels==rid]=0
-    rendered,refine_stats,residuals=refine_document(document,expected,flat,importance,seg.labels,locked,config,paths)
+    if scale>1:
+        # The supersampled partition already holds the accents that 1x overlays restore.
+        rendered,refine_stats,residuals=refine_document(document,expected,flat,importance,seg.labels,locked,
+                                                        replace(config,detail_budget=0),paths)
+        base_render=rendered
+    else:
+        base_render=render_svg(document.svg().encode())
+        rendered,refine_stats,residuals=refine_document(document,expected,flat,importance,seg.labels,locked,config,paths)
     stamp('render_refinement')
-    if config.preset == 'poster':
+    # Shock filtering already restores the contrast that blur removed from a supersampled source.
+    if config.preset == 'poster' and scale == 1:
         base_shapes = [shape for shape in document.shapes if shape.kind == 'base']
         if len({shape.fill[:3] for shape in base_shapes}) > 1:
             for shape in document.shapes:
@@ -199,13 +236,20 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
         warnings.append(f'Soft target {config.target_shapes} exceeded: {stats["shape_count"]} shapes; protected boundaries and distortion budget take priority.')
     if neural_context and not neural_context.counters['emitted_segments']:
         warnings.append('No learned curve survived the guards; classical geometry was retained.')
-    before=quality_metrics(expected,base_render);after=quality_metrics(expected,rendered)
+    if scale>1:
+        # Report fidelity against the untouched source on its own pixel grid.
+        def displayed(raster):
+            return cv2.resize(raster,tuple(display_size),interpolation=cv2.INTER_AREA)
+        target=source_rgba.copy();target[...,3]=displayed(expected[...,3])
+        before=quality_metrics(target,displayed(base_render));after=quality_metrics(target,displayed(rendered))
+    else:
+        before=quality_metrics(expected,base_render);after=quality_metrics(expected,rendered)
     if after['weighted_edge_loss']>.15:
         warnings.append('Measured source-gradient edge loss exceeds 15%; review thin details and prefer detail or precise where needed.')
     stamp('export_metrics')
     report=dict(shape_report_schema_version=2,version=__version__,mode='illustrative',preset=config.preset,
                 config={**config.to_dict(), 'max_side':max_side, 'simplify':simplify, 'smooth':smooth, 'max_error':max_error},source=str(source),source_dimensions=list(original_size),
-                width=document.width,height=document.height,backend=actual_backend,native_backend_version=2 if actual_backend=='native' else None,
+                width=document.width,height=document.height,supersample=scale,display_dimensions=list(display_size),backend=actual_backend,native_backend_version=2 if actual_backend=='native' else None,
                 **stats,**correction_stats,stages_timing=timings,seconds=time.monotonic()-started,
                 peak_memory_mb=resource.getrusage(resource.RUSAGE_SELF).ru_maxrss/1024,
                 svg_bytes=Path(dest).stat().st_size,cubic_segments=Path(dest).read_text().count('C '),merge=merge_stats,boundary_protected_count=sum(b['protected'] for b in boundaries),
@@ -218,7 +262,8 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
         path.write_text(json.dumps(report,ensure_ascii=False,indent=2,allow_nan=False),encoding='utf-8')
     if debug_dir:
         folder=Path(debug_dir);folder.mkdir(parents=True,exist_ok=True)
-        Image.fromarray(rgba).save(folder/'source.png')
+        Image.fromarray(source_rgba).save(folder/'source.png')
+        if scale>1:Image.fromarray(rgba).save(folder/'enhanced.png')
         Image.fromarray(np.dstack((flat,alpha))).save(folder/'flattened.png')
         Image.fromarray(alpha).save(folder/'alpha_mask.png')
         Image.fromarray(np.uint8(np.clip(importance*255,0,255))).save(folder/'edge_importance.png')

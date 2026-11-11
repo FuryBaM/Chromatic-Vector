@@ -58,14 +58,14 @@ def test_directional_dark_accents_follow_supported_ribbons():
     assert not unsupported[:, 20:23].any()
 
 
-def test_poster_simplifies_reference_and_keeps_major_edges(tmp_path):
+def test_source_lattice_poster_simplifies_reference_and_keeps_major_edges(tmp_path):
     source = Path(__file__).resolve().parents[1] / 'references' / 'head_shoulder_crop.png'
     svg = tmp_path / 'poster.svg'
     debug = tmp_path / 'debug'
     report = tmp_path / 'poster.json'
-    stats = vectorize(source, svg, mode='illustrative', preset='poster',
+    stats = vectorize(source, svg, mode='illustrative', preset='poster', supersample=1, target_shapes=165,
                       max_side=0, debug_dir=debug, shape_report=report)
-    assert stats['config']['target_shapes'] == 165
+    assert stats['supersample'] == 1
     assert stats['config']['max_error'] == 1.7
     assert stats['shape_count'] < 225
     assert 24 <= stats['accepted_patches'] <= stats['config']['detail_budget']

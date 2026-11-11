@@ -33,7 +33,7 @@ def importance_map(rgb, alpha):
     return result.astype(np.float32)
 
 
-def flatten_rgba(rgba, preset='detail'):
+def flatten_rgba(rgba, preset='detail', scale=1):
     rgb, alpha = rgba[...,:3].copy(), rgba[...,3]
     visible = alpha > 0
     # Hidden RGB cannot influence either clustering or the bilateral kernel.
@@ -43,7 +43,12 @@ def flatten_rgba(rgba, preset='detail'):
     elif not visible.any():
         rgb[:] = 0
     importance = importance_map(rgb,alpha)
-    if preset == 'poster':
+    if preset == 'poster' and scale > 1:
+        # The shock-filtered source is already piecewise smooth; only even out each plane.
+        diameter = 3 * scale + 1
+        flat = cv2.bilateralFilter(rgb, diameter, 20, 1.5 * scale)
+        flat = cv2.bilateralFilter(flat, diameter, 20, 1.5 * scale)
+    elif preset == 'poster':
         # Broader color planes while keeping sharp silhouettes and accents.
         diameter = min(19, max(9, 2 * round(min(alpha.shape) / 48) + 1))
         flat = cv2.bilateralFilter(rgb, diameter, 39, diameter / 2)

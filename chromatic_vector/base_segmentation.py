@@ -80,7 +80,7 @@ def rag_statistics(labels, rgb, importance, alpha, locked, strength):
     return result
 
 
-def merge_planes(seg, reference, importance, alpha, locked, config):
+def merge_planes(seg, reference, importance, alpha, locked, config, min_contrast=0.):
     n = len(seg.sizes)
     graph = rag_statistics(seg.labels,reference,importance,alpha,locked,config.boundary_preservation)
     initial = {pair:vars(stats).copy() for pair,stats in graph.items()}
@@ -106,6 +106,23 @@ def merge_planes(seg, reference, importance, alpha, locked, config):
         score = delta*(1+4*st.importance_sum/max(1,st.length))*(1+.03*np.sqrt(min(area[a],area[b]))/st.length)
         heapq.heappush(queue,(score,a,b,int(version[a]),int(version[b]),delta))
     for a,b in graph: push(a,b)
+    def union(a,b):
+        if area[a]<area[b] or (area[a]==area[b] and a>b): a,b=b,a
+        parent[b]=a; area[a]+=area[b]; area[b]=0; sums[a]+=sums[b]
+        version[a]+=1; version[b]+=1
+        neighbors[a].pop(b,None)
+        changed=set(neighbors[b])- {a}
+        for other,st in list(neighbors[b].items()):
+            if other==a: continue
+            neighbors[other].pop(b,None)
+            old = neighbors[a].get(other)
+            if old:
+                st = BoundaryStats(st.length+old.length,st.gradient_sum+old.gradient_sum,
+                                   st.importance_sum+old.importance_sum,st.strong_count+old.strong_count,
+                                   st.protected or old.protected)
+            neighbors[a][other]=st; neighbors[other][a]=st
+        neighbors[b].clear()
+        return a,sorted(changed)
     target = config.target_shapes or 1
     budget = {'detail': 65, 'draft': 130, 'poster': 320}[config.preset] * reference.size
     added = 0.; joined = 0
@@ -121,22 +138,33 @@ def merge_planes(seg, reference, importance, alpha, locked, config):
             push(a,b)
             continue
         if added+delta > budget: continue
-        if area[a]<area[b] or (area[a]==area[b] and a>b): a,b=b,a
-        parent[b]=a; area[a]+=area[b]; area[b]=0; sums[a]+=sums[b]
-        added+=delta; joined+=1; version[a]+=1; version[b]+=1
-        neighbors[a].pop(b,None)
-        changed=set(neighbors[b])- {a}
-        for other,st in list(neighbors[b].items()):
-            if other==a: continue
-            neighbors[other].pop(b,None)
-            old = neighbors[a].get(other)
-            if old:
-                st = BoundaryStats(st.length+old.length,st.gradient_sum+old.gradient_sum,
-                                   st.importance_sum+old.importance_sum,st.strong_count+old.strong_count,
-                                   st.protected or old.protected)
-            neighbors[a][other]=st; neighbors[other][a]=st
-        neighbors[b].clear()
-        for other in sorted(changed): push(a,other)
+        a,changed=union(a,b)
+        added+=delta; joined+=1
+        for other in changed: push(a,other)
+    faint=0
+    if min_contrast>0:
+        # A poster has no barely visible seams: neighbours closer than the visibility
+        # threshold become one plane even after the shape target has been met.
+        def tone(i): return _oklab(np.rint(sums[i]/area[i]).clip(0,255).astype(np.uint8)[None])[0]
+        def contrast(a,b): return float(np.linalg.norm(tone(a)-tone(b)))
+        def offer(a,b):
+            if a>b: a,b=b,a
+            st=neighbors[a].get(b)
+            if st is None or st.protected: return
+            distance=contrast(a,b)
+            if distance<min_contrast: heapq.heappush(pending,(distance,a,b,int(version[a]),int(version[b])))
+        pending=[]
+        for a in range(n):
+            if area[a]:
+                for b in neighbors[a]:
+                    if a<b: offer(a,b)
+        while pending:
+            _,a,b,va,vb=heapq.heappop(pending)
+            if version[a]!=va or version[b]!=vb or not area[a] or not area[b]: continue
+            delta=float(area[a])*float(area[b])/(area[a]+area[b])*float(np.sum((sums[a]/area[a]-sums[b]/area[b])**2))
+            a,changed=union(a,b)
+            added+=delta; joined+=1; faint+=1
+            for other in changed: offer(a,other)
     for i in range(n):
         j=i
         while parent[j]!=j: j=int(parent[j])
@@ -147,6 +175,6 @@ def merge_planes(seg, reference, importance, alpha, locked, config):
     roots=np.unique(parent)
     colors=np.rint(sums[roots]/area[roots,None]).clip(0,255).astype(np.uint8)
     result=Segmentation(labels,labels,colors,sizes)
-    return result,dict(before=n,after=len(sizes),joined=joined,added_mse=added/reference.size,
+    return result,dict(before=n,after=len(sizes),joined=joined,faint_seams_joined=faint,added_mse=added/reference.size,
                        protected_edges=sum(v['protected'] for v in initial.values()),
                        queue_policy='lazy_endpoint_refresh',peak_queue_entries=peak_queue),initial

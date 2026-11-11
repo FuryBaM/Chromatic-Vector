@@ -43,12 +43,15 @@ class VectorDocument:
     boundaries: list[dict]
     geometry_metrics: dict
     clips: dict[str,str] = field(default_factory=dict)
+    display_size: tuple[int,int] | None = None
 
-    def svg(self, bounds=None, *, contours=False):
+    def svg(self, bounds=None, *, contours=False, display=False):
         fmt=lambda x: f'{x:.6f}'.rstrip('0').rstrip('.') or '0'
         vx,vy,vw,vh = (0,0,self.width,self.height) if bounds is None else (bounds[0],bounds[1],bounds[2]-bounds[0],bounds[3]-bounds[1])
+        # A supersampled document keeps working coordinates and is displayed at the source size.
+        width,height = self.display_size if display and bounds is None and self.display_size else (vw,vh)
         lines=['<?xml version="1.0" encoding="UTF-8"?>',
-            f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="{vw}" height="{vh}" viewBox="{vx} {vy} {vw} {vh}">',
+            f'<svg xmlns="http://www.w3.org/2000/svg" xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape" width="{width}" height="{height}" viewBox="{vx} {vy} {vw} {vh}">',
             f'<title>Chromatic Vector v{__version__} — editable geometric layers</title>']
         if self.clips:
             lines.append('<defs>')
@@ -99,7 +102,7 @@ class VectorDocument:
 
     def write(self,path,*,contours=False):
         path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
-        path.write_text(self.svg(contours=contours),encoding='utf-8')
+        path.write_text(self.svg(contours=contours,display=True),encoding='utf-8')
 
     def stats(self):
         return dict(shape_count=len(self.shapes),layers=dict(Counter(s.layer for s in self.shapes)),

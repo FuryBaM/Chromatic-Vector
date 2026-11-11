@@ -34,7 +34,8 @@ def vectorize(source: str | Path, dest: str | Path, colors=18, min_area=6,
               boundary_preservation: float | None = None, residual_threshold: float | None = None,
               max_shape_levels: int | None = None, primitive_fit: str | None = None,
               refine_passes: int | None = None, contour_method: str = "bounded",
-              neural_model: str | Path | None = None, neural_optimize_steps: int = 5, neural_merge: bool = False):
+              neural_model: str | Path | None = None, neural_optimize_steps: int = 5, neural_merge: bool = False,
+              supersample: int = 0):
     if (neural_model is not None or neural_merge) and (mode!='illustrative' or contour_method!='neural'):
         raise ValueError('Neural options require --mode illustrative --contour-method neural')
     if mode not in ('precise', 'illustrative'):
@@ -53,7 +54,7 @@ def vectorize(source: str | Path, dest: str | Path, colors=18, min_area=6,
             boundary_preservation=boundary_preservation, residual_threshold=residual_threshold,
             max_shape_levels=max_shape_levels, primitive_fit=primitive_fit,
             refine_passes=refine_passes, seed=seed, contour_method=contour_method, neural_model=str(neural_model) if neural_model else None,
-            neural_optimize_steps=neural_optimize_steps,neural_merge=neural_merge)
+            neural_optimize_steps=neural_optimize_steps,neural_merge=neural_merge,supersample=supersample)
         if geometry != 'shared' or export_mode != 'shapes':
             raise ValueError('Illustrative mode requires --geometry shared and --export-mode shapes')
         return vectorize_illustrative(source, dest, config=config, backend=backend,
@@ -201,6 +202,8 @@ def main():
     p.add_argument('--neural-model',type=Path)
     p.add_argument('--neural-optimize-steps',type=int,default=5)
     p.add_argument('--neural-merge',action='store_true')
+    p.add_argument('--supersample',type=int,default=0,
+                   help='Illustrative working scale 1..4; 0 picks it automatically for small opaque poster sources')
     p.add_argument("--quality", choices=("balanced", "precise"), default="balanced",
                    help="Preset; explicit flags override its choices")
     p.add_argument("--colors", type=int, default=None, help="Palette size (2..256)")
@@ -251,7 +254,7 @@ def main():
         try:
             IllustrativeConfig.resolve(args.preset, **{k:getattr(args,k) for k in
                 ('base_colors','detail_budget','boundary_preservation','residual_threshold',
-                 'max_shape_levels','primitive_fit','refine_passes','contour_method','neural_optimize_steps','neural_merge')})
+                 'max_shape_levels','primitive_fit','refine_passes','contour_method','neural_optimize_steps','neural_merge','supersample')})
         except ValueError as exc:
             p.error(str(exc))
     presets = {
@@ -287,7 +290,8 @@ def main():
                       detail_budget=args.detail_budget, boundary_preservation=args.boundary_preservation,
                       residual_threshold=args.residual_threshold, max_shape_levels=args.max_shape_levels,
                       primitive_fit=args.primitive_fit, refine_passes=args.refine_passes, contour_method=args.contour_method,neural_model=args.neural_model,
-                      neural_optimize_steps=args.neural_optimize_steps,neural_merge=args.neural_merge)
+                      neural_optimize_steps=args.neural_optimize_steps,neural_merge=args.neural_merge,
+                      supersample=args.supersample)
     print("Chromatic Vector:", stats)
     print("SVG:", args.output.resolve())
 

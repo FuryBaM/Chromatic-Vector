@@ -13,6 +13,8 @@
 
     python -m chromatic_vector references/head_shoulder_crop.png poster.svg --mode illustrative --preset poster
 
+Небольшие непрозрачные исходники `poster` трассирует на увеличенной копии (до 4×) с восстановленными кромками: контуры получаются субпиксельными, с прямыми участками и настоящими углами. SVG сохраняет размер исходника. `--supersample 1` возвращает прежнюю обработку на сетке исходника, `--supersample 2..4` задаёт масштаб вручную. В увеличенном режиме overlay-уточнение (`--detail-budget`) не выполняется.
+
 Чтобы увидеть линии экспортированных фигур, добавьте `--debug-dir debug/poster` и откройте `vector_contours.svg` из этой папки.
 
 Веса и metadata.json: chromatic_vector/assets/bezier_patch_v1/.

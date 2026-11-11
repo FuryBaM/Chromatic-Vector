@@ -3,16 +3,18 @@ import numpy as np
 from shapely.geometry import LineString, Point
 from shapely.strtree import STRtree
 from .shared import SharedBoundaryGeometry
-from .curve_fitting import fit_poster_curve, fit_shared_curve, sample_curves, turning_cost
+from .curve_fitting import fit_ink_curve, fit_poster_curve, fit_shared_curve, sample_curves, turning_cost
 
 
 def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, method="bounded", neural_context=None,
-                *, poster=False):
+                *, poster=False, poster_scale=1.):
     from .unipolar import METHODS, fit_unipolar
     if method not in (*METHODS,'neural'):raise ValueError('Unknown contour method: '+method)
     fitter=fit_shared_curve if method in ('bounded','neural') else lambda raw,eps,smooth,err:fit_unipolar(raw,eps,smooth,err,method)
     if poster and method in ('bounded', 'neural'):
-        fitter=fit_poster_curve
+        # Supersampled chains are dense enough for a polygon-based fit with real corners.
+        fitter=fit_poster_curve if poster_scale==1 else (
+            lambda raw,eps,tension,err:fit_ink_curve(raw,eps,tension,err,scale=poster_scale))
     # RDP is float-stable across the two edge scanners; canonical anchor identical.
     graph=SharedBoundaryGeometry(edges,simplify,smooth,'rdp',max_error=max_error,region_styles=styles,
                                  chain_fitter=fitter)
@@ -41,9 +43,18 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
                     continue
             bounded_curves[chain_index]=chain.cubics
             chain.cubics=candidate
-    fallback=set(); reduced_fit=set(); lattice_fallback=set(); violations=0
+    fallback=set(); soft_fit=set(); reduced_fit=set(); lattice_fallback=set(); violations=0
     recover_bounded = method == 'bounded' and max_error > 0 and (simplify > 0 or smooth > 0)
-    audit_passes = 5 if method == 'neural' else 3 + int(recover_bounded)
+    # An unsafe ink contour first gives up its rebuilt corners, then tolerance, then smoothing.
+    ink = poster and poster_scale > 1 and recover_bounded
+    audit_passes = 5 if method == 'neural' else 3 + int(recover_bounded) + int(ink)
+    def local_style(chain):
+        eps, tension = simplify, smooth
+        for region in chain.paired_regions:
+            if styles and region in styles:
+                local_eps, local_smooth = styles[region]
+                eps, tension = min(eps, local_eps), min(tension, local_smooth)
+        return eps, tension
     for _ in range(audit_passes):
         lines=[]
         for chain in graph.chains:
@@ -68,14 +79,14 @@ def safe_shared(edges, simplify=.65, smooth=.4, max_error=.8, styles=None, metho
             # Audit the original bounded fit before reverting to the pixel grid.
             if i in bounded_curves:
                 chain.cubics=bounded_curves.pop(i)
+            elif ink and i not in soft_fit:
+                eps, tension = local_style(chain)
+                chain.cubics=fit_poster_curve(np.asarray(chain.vertices,float),eps,tension,max_error)[0]
+                soft_fit.add(i)
             elif (recover_bounded or i in neural_records) and i not in reduced_fit:
-                eps, tension = simplify, smooth
-                for region in chain.paired_regions:
-                    if styles and region in styles:
-                        local_eps, local_smooth = styles[region]
-                        eps, tension = min(eps, local_eps), min(tension, local_smooth)
+                eps, tension = local_style(chain)
                 raw=np.asarray(chain.vertices,float)
-                retry = fitter if poster and method in ('bounded', 'neural') else fit_shared_curve
+                retry = fit_poster_curve if ink else fitter if poster and method in ('bounded', 'neural') else fit_shared_curve
                 chain.cubics=retry(raw,eps*.5,tension*.5,max_error)[0]
                 reduced_fit.add(i)
             elif i not in lattice_fallback:
