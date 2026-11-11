@@ -45,6 +45,33 @@ def test_stacked_poster_shortcuts_only_a_covered_recess():
     assert stack_poster(uncovered, labels, 1, 1, render_svg(uncovered.svg().encode()))[1] == 0
 
 
+def test_stacked_poster_fills_only_holes_covered_by_the_actual_upper_shapes():
+    outline = 'M 0 0 L 28 0 L 28 20 L 0 20 Z'
+    covered = 'M 4 5 L 4 11 L 10 11 L 10 5 Z'
+    partly_covered = 'M 17 5 L 17 11 L 24 11 L 24 5 Z'
+    lower = VectorShape('lower', [0], 'secondary', 'shadows', (35, 40, 45, 255),
+                        f'fill-rule="evenodd" d="{outline} {covered} {partly_covered}"',
+                        'path', (0, 0, 28, 20), 482, draw_order=2, holes=2)
+    covers = [VectorShape(f'detail-{rid}', [rid], 'detail', 'details', (220, 170, 65, 255),
+                          f'x="{x}" y="5" width="3" height="6"', 'rect', (x, 5, x+3, 11),
+                          18, draw_order=order)
+              for rid, x, order in ((1, 4, 0), (2, 7, 1), (3, 17, 3))]
+    labels = np.zeros((20, 28), np.int32)
+    labels[5:11, 4:7] = 1
+    labels[5:11, 7:10] = 2
+    labels[5:11, 17:24] = 3
+    doc = VectorDocument(28, 20, [lower, *covers], [], {})
+    before = render_svg(doc.svg().encode())
+    stacked, saved, after = stack_poster(doc, labels, 1, 1, before)
+
+    assert saved == 3
+    assert stacked.shapes[0].holes == 1
+    assert stacked.shapes[0].geometry == f'fill-rule="evenodd" d="{outline} {partly_covered}"'
+    assert [shape.uid for shape in stacked.shapes[1:]] == [shape.uid for shape in covers]
+    np.testing.assert_array_equal(after, before)
+    np.testing.assert_array_equal(render_svg(stacked.svg().encode()), before)
+
+
 def test_layer_compaction_combines_disjoint_fills_and_preserves_paint_order():
     shapes = []
     for index, (bounds, layer, rgb) in enumerate([

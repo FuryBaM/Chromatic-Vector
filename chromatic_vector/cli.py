@@ -206,7 +206,7 @@ def main():
     p.add_argument('--neural-merge',action='store_true')
     p.add_argument('--supersample',type=int,default=0,
                    help='Illustrative working scale 1..4; 0 picks it automatically for small opaque poster sources')
-    p.add_argument('--stacked', action='store_true', help='Simplify covered recesses in opaque poster planes')
+    p.add_argument('--stacked', action='store_true', help='Simplify covered recesses and holes in opaque poster layers')
     p.add_argument("--quality", choices=("balanced", "precise"), default="balanced",
                    help="Preset; explicit flags override its choices")
     p.add_argument("--colors", type=int, default=None, help="Palette size (2..256)")

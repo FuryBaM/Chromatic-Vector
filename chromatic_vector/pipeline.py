@@ -246,8 +246,10 @@ def vectorize_illustrative(source,dest,*,config,backend='auto',max_side=0,correc
         stamp('export_compaction')
     if config.stacked and geometry_metrics['seam_underpaint'] and not locked.any():
         from .stacking import stack_poster
+        holes_before = sum(shape.holes for shape in document.shapes)
         document, saved, rendered = stack_poster(document, seg.labels, scale, max_error, rendered)
         geometry_metrics['stacked_segments_removed'] = saved
+        geometry_metrics['stacked_holes_filled'] = holes_before - sum(shape.holes for shape in document.shapes)
         stamp('stacked_export')
     document.write(dest)
     stats=document.stats()
